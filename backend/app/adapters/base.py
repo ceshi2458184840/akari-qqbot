@@ -17,6 +17,8 @@ class IncomingMessage:
     peer_id: str             # 群号 / 用户号（个人号是 QQ 号；官方号是 openid）
     sender_id: str
     sender_name: str = ""
+    sender_avatar: str = ""
+    peer_name: str = ""
     text: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
     message_id: str = ""
@@ -55,4 +57,5 @@ class BaseAdapter:
         raise NotImplementedError
 
     def status(self) -> dict[str, Any]:
-        return {"id": self.account_id, "mode": self.mode, "connected": self.connected}
+        return {"id": self.account_id, "mode": self.mode, "connected": self.connected,
+                "name": getattr(self, "bot_name", ""), "avatar": getattr(self, "bot_avatar", "")}

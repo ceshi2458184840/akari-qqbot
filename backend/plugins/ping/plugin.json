@@ -1,0 +1,7 @@
+{
+  "name": "ping",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "description": "存活测试：发送 /ping 机器人回 pong",
+  "hooks": ["message"]
+}

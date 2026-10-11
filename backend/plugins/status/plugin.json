@@ -1,0 +1,7 @@
+{
+  "name": "status",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "description": "状态插件：/status 查看在线账号、插件数量、运行时长",
+  "hooks": ["message"]
+}

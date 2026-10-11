@@ -32,6 +32,14 @@ class PluginAPI:
     async def send(self, bot_id: str, scene: str, peer_id: str, text: str) -> dict[str, Any]:
         return await self._m.send(bot_id, scene, peer_id, text)
 
+    def list_plugins(self) -> list[dict[str, Any]]:
+        """当前已安装插件列表。"""
+        return self._m.info()
+
+    def get_bots(self) -> list[dict[str, Any]]:
+        """当前所有账号（含连接状态）。"""
+        return self._m.get_bots()
+
 
 class PluginManager:
     def __init__(self, root: str, bus, log=print):
@@ -41,6 +49,7 @@ class PluginManager:
         self.installed: dict[str, dict[str, Any]] = {}
         self._handlers: dict[str, list[tuple[str, Callable]]] = {}
         self._send_cb: Callable[..., Awaitable[dict]] | None = None
+        self._bots_provider: Callable[[], list] | None = None
         os.makedirs(self.root, exist_ok=True)
 
     # ---- 供 main 注入「发消息」能力 ----
@@ -51,6 +60,15 @@ class PluginManager:
         if not self._send_cb:
             raise RuntimeError("send callback 未注入")
         return await self._send_cb(bot_id, scene, peer_id, text)
+
+    def set_bots_provider(self, cb: Callable[[], list]) -> None:
+        self._bots_provider = cb
+
+    def get_bots(self) -> list:
+        try:
+            return self._bots_provider() if self._bots_provider else []
+        except Exception:
+            return []
 
     def register(self, event_type: str, plugin: str, fn: Callable) -> None:
         self._handlers.setdefault(event_type, []).append((plugin, fn))

@@ -12,114 +12,186 @@
 <title>AkariBot</title>
 <style>
   :root{
-    --qq-blue:#12b7f5; --qq-blue-d:#0a9fe0; --bg:#f2f3f5; --card:#ffffff;
-    --line:#e6e8eb; --txt:#1f2329; --txt2:#8a9099; --self:#95ec69; --other:#ffffff;
+    --blue:#12b7f5; --blue-d:#0a9fe0; --blue-l:#e5f5fe;
+    --bg:#f4f5f7; --card:#fff; --line:#ebedf0;
+    --txt:#181818; --txt2:#9095a0; --txt3:#b7bcc5;
+    --self:#95ec69; --self-d:#8ade5e; --red:#fa5151; --green:#07c160;
+    --safe-b: env(safe-area-inset-bottom, 0px);
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#dfe1e5;color:var(--txt);
-       display:flex;justify-content:center;min-height:100vh}
-  .phone{width:100%;max-width:430px;background:var(--bg);height:100vh;display:flex;flex-direction:column;
-         box-shadow:0 0 40px rgba(0,0,0,.12);position:relative;overflow:hidden}
-  /* 顶栏 */
-  .topbar{background:var(--qq-blue);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
-          font-size:17px;font-weight:600;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-  .topbar .sub{font-size:12px;font-weight:400;opacity:.9}
-  .topbar .botpick{background:rgba(255,255,255,.18);border-radius:6px;padding:4px 8px;font-size:12px;max-width:40%;
-                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* 页面区 */
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','HarmonyOS Sans SC','Microsoft YaHei',sans-serif;
+       background:#e9ebee;color:var(--txt);display:flex;justify-content:center;overflow:hidden;
+       -webkit-font-smoothing:antialiased}
+  .phone{width:100%;max-width:420px;height:100dvh;background:var(--bg);display:flex;flex-direction:column;
+         position:relative;box-shadow:0 0 48px rgba(0,0,0,.13);overflow:hidden}
+  svg{display:block}
+
+  /* ============ 顶栏 ============ */
+  .nav{background:linear-gradient(180deg,#16bcf7,#0fa8ea);color:#fff;flex-shrink:0;
+       padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;
+       justify-content:space-between;box-shadow:0 1px 6px rgba(10,120,180,.18);z-index:5}
+  .nav .title{font-size:18px;font-weight:600;letter-spacing:.3px}
+  .nav .acct{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.2);
+             padding:5px 10px;border-radius:20px;font-size:12.5px;max-width:46%;cursor:pointer}
+  .nav .acct span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nav .acct .st{width:7px;height:7px;border-radius:50%;background:#c8f7c5;flex-shrink:0}
+  .nav .acct.off .st{background:#ffd0d0}
+
+  /* ============ 页面滚动区 ============ */
   .page{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .page::-webkit-scrollbar{width:0}
   .hidden{display:none!important}
-  /* 会话列表 */
-  .conv{display:flex;align-items:center;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);cursor:pointer}
-  .conv:active{background:#f6f7f8}
-  .avatar{width:44px;height:44px;border-radius:8px;color:#fff;display:flex;align-items:center;justify-content:center;
-          font-size:17px;font-weight:600;flex-shrink:0}
-  .avatar.round{border-radius:50%}
+
+  /* ============ 会话列表 ============ */
+  .convlist{padding:8px 0}
+  .conv{display:flex;align-items:center;padding:11px 16px;background:var(--card);cursor:pointer;position:relative}
+  .conv + .conv::before{content:'';position:absolute;left:74px;right:0;top:0;height:1px;background:var(--line)}
+  .conv:active{background:#f7f8fa}
+  .av{width:50px;height:50px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+      color:#fff;font-size:19px;font-weight:600;position:relative;overflow:hidden;letter-spacing:.5px}
+  .av img{width:100%;height:100%;object-fit:cover}
+  .av .on-dot{position:absolute;right:-1px;bottom:-1px;width:13px;height:13px;border-radius:50%;
+              background:var(--green);border:2.5px solid #fff}
   .conv .mid{flex:1;margin-left:12px;min-width:0}
-  .conv .name{font-size:15.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .conv .preview{font-size:13px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-  .conv .time{font-size:11px;color:var(--txt2);align-self:flex-start;margin-left:8px}
-  .badge{background:#fa5151;color:#fff;font-size:11px;border-radius:9px;padding:1px 6px;margin-left:6px}
-  /* 空态 */
-  .empty{text-align:center;color:var(--txt2);font-size:14px;padding:60px 30px;line-height:1.9}
-  /* 聊天页 */
-  .chat-head{background:var(--qq-blue);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-  .chat-head .back{font-size:20px;line-height:1;cursor:pointer;width:24px}
-  .chat-head .t{flex:1;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .chat-body{flex:1;overflow-y:auto;padding:14px;background:var(--bg)}
-  .row{display:flex;margin-bottom:14px;align-items:flex-start;gap:8px}
+  .conv .nm{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+  .conv .pv{font-size:13.5px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+  .conv .rt{display:flex;flex-direction:column;align-items:flex-end;gap:7px;margin-left:8px;align-self:flex-start;padding-top:2px}
+  .conv .tm{font-size:11.5px;color:var(--txt3)}
+  .bdg{min-width:19px;height:19px;border-radius:10px;background:var(--red);color:#fff;font-size:11.5px;
+       font-weight:500;display:flex;align-items:center;justify-content:center;padding:0 5px}
+
+  /* ============ 空态 ============ */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+         padding:70px 34px;color:var(--txt2);font-size:14px;line-height:1.75;text-align:center}
+  .empty svg{opacity:.32}
+  .empty b{color:var(--blue)}
+
+  /* ============ 聊天 ============ */
+  .chat-top{background:linear-gradient(180deg,#16bcf7,#0fa8ea);color:#fff;flex-shrink:0;
+            padding:calc(env(safe-area-inset-top,0px) + 11px) 14px 11px;display:flex;align-items:center;gap:8px}
+  .chat-top .bk{width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:-6px}
+  .chat-top .tt{flex:1;font-size:16.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;padding-right:24px}
+  .chat-body{flex:1;overflow-y:auto;padding:14px 12px 6px;background:var(--bg)}
+  .chat-body::-webkit-scrollbar{width:0}
+  .ts{text-align:center;font-size:11.5px;color:var(--txt3);margin:10px 0}
+  .row{display:flex;margin-bottom:14px;align-items:flex-start;gap:9px}
   .row.me{flex-direction:row-reverse}
-  .bubble{max-width:72%;padding:9px 12px;border-radius:10px;font-size:15px;line-height:1.45;background:var(--other);
-          box-shadow:0 1px 2px rgba(0,0,0,.05);word-break:break-word}
-  .row.me .bubble{background:var(--self)}
-  .chat-input{display:flex;gap:8px;padding:10px 12px;background:#f7f8fa;border-top:1px solid var(--line);flex-shrink:0}
-  .chat-input input{flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:15px;background:#fff;outline:none}
-  .chat-input button{background:var(--qq-blue);color:#fff;border:none;border-radius:8px;padding:0 18px;font-size:15px;font-weight:500}
-  .chat-input button:active{background:var(--qq-blue-d)}
-  /* 底部 Tab */
-  .tabs{display:flex;background:#f7f8fa;border-top:1px solid var(--line);flex-shrink:0}
-  .tab{flex:1;text-align:center;padding:9px 0 11px;font-size:11px;color:var(--txt2);cursor:pointer;position:relative}
-  .tab.on{color:var(--qq-blue)}
-  .tab .ic{font-size:0;width:22px;height:22px;margin:0 auto 3px;display:block}
-  .tab.on .ic{background:var(--qq-blue)}
-  .tab .ic{background:var(--txt2);border-radius:6px}
-  /* 卡片/表单 */
-  .sec{padding:14px 16px}
-  .sec h4{font-size:13px;color:var(--txt2);font-weight:500;margin:6px 0 10px}
-  .card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;font-size:14.5px;line-height:1.6}
-  .botrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
-  .botrow:last-child{border-bottom:none}
-  .dot{width:8px;height:8px;border-radius:50%;background:#c8ccd1;flex-shrink:0}
-  .dot.on{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.18)}
-  .pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#eef1f4;color:var(--txt2);margin-left:auto}
-  .pill.b{background:#e5f5fe;color:var(--qq-blue)}
-  input.f,select.f{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14.5px;margin:5px 0;background:#fff;outline:none}
-  .btn{width:100%;background:var(--qq-blue);color:#fff;border:none;border-radius:9px;padding:12px;font-size:15px;font-weight:600;margin-top:8px}
-  .btn:active{background:var(--qq-blue-d)}
-  .btn.ghost{background:#eef1f4;color:var(--txt)}
-  .hint{font-size:12px;color:var(--txt2);line-height:1.6;margin-top:6px}
-  .tag{display:inline-block;font-size:11px;background:#eef1f4;color:var(--txt2);border-radius:6px;padding:1px 7px;margin:2px 3px 0 0}
+  .row .av{width:38px;height:38px;border-radius:11px;font-size:15px}
+  .bwrap{max-width:70%;display:flex;flex-direction:column}
+  .row.me .bwrap{align-items:flex-end}
+  .sname{font-size:11.5px;color:var(--txt2);margin:0 4px 4px}
+  .row.me .sname{display:none}
+  .bub{padding:9px 13px;border-radius:14px;font-size:15.5px;line-height:1.5;background:#fff;
+       box-shadow:0 1px 3px rgba(0,0,0,.05);word-break:break-word;position:relative}
+  .row.me .bub{background:linear-gradient(180deg,var(--self),var(--self-d));color:#111;
+               box-shadow:0 1px 3px rgba(120,190,90,.28)}
+  .chat-in{display:flex;gap:9px;padding:9px 12px calc(9px + var(--safe-b));background:#f7f8fa;
+           border-top:1px solid var(--line);flex-shrink:0;align-items:flex-end}
+  .chat-in input{flex:1;border:1px solid var(--line);border-radius:19px;padding:10px 15px;font-size:15.5px;
+                 background:#fff;outline:none;transition:border-color .15s}
+  .chat-in input:focus{border-color:var(--blue)}
+  .chat-in .snd{background:var(--blue);color:#fff;border:none;border-radius:19px;padding:10px 19px;
+                font-size:15px;font-weight:600;flex-shrink:0}
+  .chat-in .snd:active{background:var(--blue-d)}
+
+  /* ============ 底部 Tab ============ */
+  .tabs{display:flex;background:#fbfcfd;border-top:1px solid var(--line);flex-shrink:0;
+        padding-bottom:var(--safe-b)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;
+       color:var(--txt2);cursor:pointer;position:relative;transition:color .15s}
+  .tab .tl{font-size:10.5px;font-weight:500}
+  .tab.on{color:var(--blue)}
+  .tab .navbadge{position:absolute;top:6px;left:calc(50% + 6px);min-width:16px;height:16px;border-radius:8px;
+                 background:var(--red);color:#fff;font-size:10.5px;display:flex;align-items:center;
+                 justify-content:center;padding:0 4px;font-weight:500}
+
+  /* ============ 通用卡片/表单 ============ */
+  .sec{padding:14px 14px 20px}
+  .sec > h4{font-size:12.5px;color:var(--txt2);font-weight:600;letter-spacing:.4px;
+            margin:14px 6px 9px;text-transform:uppercase}
+  .sec > h4:first-child{margin-top:4px}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;
+        box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card.flat{padding:0;overflow:hidden}
+  input.f,select.f{width:100%;border:1px solid #e3e5e9;border-radius:11px;padding:12px 13px;font-size:15px;
+                   margin:6px 0;background:#fafbfc;outline:none;transition:border-color .15s;color:var(--txt)}
+  input.f:focus,select.f:focus{border-color:var(--blue);background:#fff}
+  select.f{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239095a0' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+           background-repeat:no-repeat;background-position:right 14px center}
+  .btn{width:100%;background:linear-gradient(180deg,#18bdf8,#0ea5e6);color:#fff;border:none;border-radius:11px;
+       padding:13px;font-size:16px;font-weight:600;margin-top:9px;box-shadow:0 2px 8px rgba(18,183,245,.28)}
+  .btn:active{transform:translateY(1px);box-shadow:0 1px 4px rgba(18,183,245,.28)}
+  .btn.ghost{background:#eef1f4;color:#3a3f47;box-shadow:none}
+  .btn.sm{padding:8px 14px;font-size:13.5px;width:auto;display:inline-block;margin:0;border-radius:9px}
+  .btn.danger{background:#fdecec;color:#e5484d;box-shadow:none}
+  .hint{font-size:12.5px;color:var(--txt2);line-height:1.65;margin-top:8px}
+  .hint a{color:var(--blue);text-decoration:none}
+  .tag{display:inline-block;font-size:11px;background:#eef1f4;color:#697077;border-radius:6px;padding:2px 8px;margin:3px 4px 0 0}
+
+  /* 账号行 */
+  .brow{display:flex;align-items:center;gap:11px;padding:12px 0;position:relative}
+  .brow + .brow::before{content:'';position:absolute;left:56px;right:0;top:0;height:1px;background:var(--line)}
+  .brow .av{width:42px;height:42px;border-radius:12px;font-size:16px}
+  .brow .bi{flex:1;min-width:0}
+  .brow .bi .l{font-size:15.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brow .bi .s{font-size:12.5px;color:var(--txt2);margin-top:3px;display:flex;align-items:center;gap:6px}
+  .brow .ops{display:flex;gap:7px;flex-shrink:0}
+  .dot{width:7px;height:7px;border-radius:50%;background:#ccd0d6;flex-shrink:0}
+  .dot.on{background:var(--green);box-shadow:0 0 0 3px rgba(7,193,96,.15)}
+
+  /* 插件行 */
+  .prow{padding:13px 0;position:relative}
+  .prow + .prow::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;background:var(--line)}
+  .prow .ph{display:flex;align-items:center;gap:9px}
+  .prow .pico{width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#e8f4fe,#d3ecfd);
+              display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .prow .pn{font-size:15.5px;font-weight:500;flex:1}
+  .prow .pver{font-size:11.5px;color:var(--txt3);background:#f2f4f6;padding:2px 7px;border-radius:6px}
+  .prow .pd{font-size:13px;color:var(--txt2);line-height:1.6;margin-top:6px}
+  .toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:rgba(20,22,26,.9);color:#fff;
+         font-size:14px;padding:11px 20px;border-radius:12px;opacity:0;transition:opacity .22s,transform .22s;
+         pointer-events:none;z-index:99;max-width:80%;text-align:center;backdrop-filter:blur(8px)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
 </style>
 </head>
 <body>
 <div class="phone">
-  <div class="topbar">
-    <span id="topTitle">消息</span>
-    <span class="botpick" id="botPick" onclick="switchTab('me')">未连接账号</span>
+  <div class="nav">
+    <span class="title" id="topTitle">消息</span>
+    <span class="acct" id="botPick" onclick="switchTab('me')"><i class="st" style="background:#c8c8c8"></i><span>未连接</span></span>
   </div>
 
   <!-- 消息 -->
-  <div class="page" id="page-msg">
-    <div id="convList"></div>
-  </div>
+  <div class="page" id="page-msg"><div class="convlist" id="convList"></div></div>
 
   <!-- 聊天 -->
   <div class="page hidden" id="page-chat" style="display:flex;flex-direction:column">
-    <div class="chat-head">
-      <span class="back" onclick="closeChat()">‹</span>
-      <span class="t" id="chatTitle">会话</span>
+    <div class="chat-top">
+      <span class="bk" onclick="closeChat()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
+      <span class="tt" id="chatTitle">会话</span>
     </div>
     <div class="chat-body" id="chatBody"></div>
-    <div class="chat-input">
-      <input id="chatText" placeholder="输入消息…" onkeydown="if(event.key==='Enter')sendMsg()">
-      <button onclick="sendMsg()">发送</button>
+    <div class="chat-in">
+      <input id="chatText" placeholder="输入消息" onkeydown="if(event.key==='Enter')sendMsg()">
+      <button class="snd" onclick="sendMsg()">发送</button>
     </div>
   </div>
 
   <!-- 插件 -->
   <div class="page hidden" id="page-plugin">
     <div class="sec">
-      <h4>插件商店 · 输入 Git 仓库地址</h4>
+      <h4>插件商店</h4>
       <div class="card">
-        <input class="f" id="repoUrl" placeholder="https://github.com/user/repo">
-        <div style="display:flex;gap:8px">
+        <input class="f" id="repoUrl" placeholder="粘贴 Git 仓库地址，如 https://github.com/user/repo">
+        <div style="display:flex;gap:9px">
           <button class="btn ghost" style="flex:1" onclick="scanRepo()">扫描</button>
           <button class="btn" style="flex:1" onclick="installRepo()">安装全部</button>
         </div>
-        <div class="hint" id="scanResult"></div>
+        <div class="hint" id="scanResult">填一个仓库地址，一键拉取它下面所有插件（含子文件夹）。</div>
       </div>
-      <h4>已安装插件</h4>
-      <div class="card" id="pluginList"></div>
+      <h4>已安装插件 <span id="pluginCount" style="color:var(--blue)"></span></h4>
+      <div class="card flat" style="padding:0 14px" id="pluginList"></div>
     </div>
   </div>
 
@@ -127,140 +199,208 @@
   <div class="page hidden" id="page-me">
     <div class="sec">
       <h4>机器人账号</h4>
-      <div class="card" id="botList"></div>
+      <div class="card flat" style="padding:0 14px" id="botList"></div>
+
       <h4>添加账号</h4>
       <div class="card">
         <select class="f" id="newMode">
-          <option value="onebot">个人号 · OneBot / NapCat（扫码登录）</option>
-          <option value="qqofficial">官方号 · AppID + AppSecret</option>
+          <option value="qqofficial">官方机器人 · AppID + AppSecret</option>
+          <option value="onebot">个人号 · OneBot / NapCat</option>
         </select>
-        <input class="f" id="newLabel" placeholder="备注名（如：小号 / 官方机器人）">
-        <input class="f" id="newToken" placeholder="OneBot：连接 Token">
-        <input class="f" id="newAppid" placeholder="官方：AppID" style="display:none">
-        <input class="f" id="newSecret" placeholder="官方：AppSecret" style="display:none">
-        <button class="btn" onclick="addBot()">添加</button>
-        <div class="hint">个人号：需另装 NapCat，登录 QQ 后把「反向 WebSocket」指向 <b id="wsHint"></b></div>
+        <input class="f" id="newLabel" placeholder="备注名（如：小助手）">
+        <input class="f" id="newAppid" placeholder="AppID（必填）">
+        <input class="f" id="newSecret" placeholder="AppSecret（必填）">
+        <input class="f" id="newToken" placeholder="连接 Token（可选）" style="display:none">
+        <button class="btn" onclick="addBot()">添加账号</button>
+        <div class="hint" id="addHint">在 QQ 开放平台创建机器人后，把 AppID / AppSecret 填这里即可。</div>
       </div>
-      <h4>服务器地址（打包成 App 后必填）</h4>
+
+      <h4>后端服务器</h4>
       <div class="card">
-        <input class="f" id="srvUrl" placeholder="https://你的后端地址（留空=当前站点）">
-        <button class="btn" onclick="saveSrv()">保存并重连</button>
-        <div class="hint">装成 App 后，这里填你部署 AkariBot 后端的地址，App 就能连上。</div>
+        <input class="f" id="srvUrl" placeholder="https://akaribot.landisha.icu">
+        <button class="btn ghost" onclick="saveSrv()">保存并重连</button>
+        <div class="hint">机器人逻辑跑在这台服务器上，App 只是遥控器。换成你自己的地址也行。</div>
       </div>
     </div>
   </div>
 
   <div class="tabs">
-    <div class="tab on" data-tab="msg" onclick="switchTab('msg')"><i class="ic"></i>消息</div>
-    <div class="tab" data-tab="plugin" onclick="switchTab('plugin')"><i class="ic"></i>插件</div>
-    <div class="tab" data-tab="me" onclick="switchTab('me')"><i class="ic"></i>我的</div>
+    <div class="tab on" data-tab="msg" onclick="switchTab('msg')">
+      <svg class="ti" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+      <span class="tl">消息</span><span class="navbadge hidden" id="tabBadge"></span>
+    </div>
+    <div class="tab" data-tab="plugin" onclick="switchTab('plugin')">
+      <svg class="ti" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a2 2 0 114 0v1h3a1 1 0 011 1v3h1a2 2 0 110 4h-1v3a1 1 0 01-1 1h-3v-1a2 2 0 10-4 0v1H6a1 1 0 01-1-1v-3H4a2 2 0 110-4h1V6a1 1 0 011-1h3V4z"/></svg>
+      <span class="tl">插件</span>
+    </div>
+    <div class="tab" data-tab="me" onclick="switchTab('me')">
+      <svg class="ti" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="tl">我的</span>
+    </div>
   </div>
 </div>
+<div class="toast" id="toast"></div>
 
 <script>
-const PALETTE=["#12b7f5","#f5a623","#7ed321","#bd10e0","#4a90e2","#fa5151","#50e3c2","#8b572a"];
+const PALETTE=["#5b9df9","#f5a623","#4ecb73","#bd6ae8","#4a90e2","#fa7d7d","#42c9c9","#a0745c","#e0736f","#6b7fd7"];
 const $=id=>document.getElementById(id);
 let bots=[], convs={}, cur=null, curTab="msg";
 
-function colorOf(s){let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length]}
-function initials(s){return (s||"?").slice(0,2)}
-function avatar(name,round=true){return `<div class="avatar ${round?'round':''}" style="background:${colorOf(name||'?')}">${initials(name)}</div>`}
-function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+/* ---- 工具 ---- */
+function colorOf(s){let h=0;s=s||'?';for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length]}
+function initials(s){s=(s||'?').trim();return /^[a-zA-Z]/.test(s)?s[0].toUpperCase():s.slice(-2)}
+function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function now(){const d=new Date();return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1900)}
+function avatarHTML(name,url,cls){cls=cls||'av';
+  return url? `<div class="${cls}"><img src="${esc(url)}" alt=""></div>`
+            : `<div class="${cls}" style="background:linear-gradient(145deg,${colorOf(name)},${colorOf(name+'x')})">${esc(initials(name))}</div>`}
 
+/* ---- 服务器 ---- */
 const DEFAULT_SRV='https://akaribot.landisha.icu';
 const SRV=()=>localStorage.getItem('akari_server')||((location.hostname==='localhost'||location.protocol==='capacitor:')?DEFAULT_SRV:'');
 const apiUrl=p=>SRV().replace(/\/$/,'')+p;
 function wsUrl(){const s=SRV();return s? s.replace(/^http/,'ws').replace(/\/$/,'')+'/ws' : `ws://${location.host}/ws`}
 async function api(path,opt){const r=await fetch(apiUrl(path),opt);return r.json()}
 function srvWsBase(){return (SRV()||('ws://'+location.host)).replace(/^http/,'ws').replace(/\/$/,'')}
+function saveSrv(){localStorage.setItem('akari_server',$('srvUrl').value.trim());location.reload()}
 
-// ---- 机器人 ----
+/* ---- 机器人 ---- */
 async function loadBots(){
-  bots=await api('/api/bots');
-  $('botPick').textContent = bots.length? (bots.find(b=>b.status.connected)?.label||bots[0].label) : '未连接账号';
-  $('botList').innerHTML = bots.length? bots.map(b=>`
-    <div class="botrow">
-      <span class="dot ${b.status.connected?'on':''}"></span>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:500">${esc(b.label)}</div>
-        <div style="font-size:12px;color:var(--txt2)">${b.mode==='onebot'?'个人号 OneBot':'官方号'} · ${b.status.connected?'在线':'离线'}</div>
-      </div>
-      ${b.status.connected
-        ? `<button class="pill" onclick="botAction('${b.id}','stop')">停止</button>`
-        : `<button class="pill b" onclick="botAction('${b.id}','start')">启动</button>`}
-    </div>`).join('') : `<div class="empty">还没有账号，下面添加一个</div>`;
+  try{bots=await api('/api/bots')}catch(e){bots=[]}
+  const online=bots.find(b=>b.status&&b.status.connected);
+  const pk=$('botPick');
+  pk.classList.toggle('off',!online);
+  pk.innerHTML=`<i class="st"></i><span>${online?esc(online.label):(bots.length?'离线':'未连接')}</span>`;
+  $('botList').innerHTML = bots.length? bots.map(b=>{
+    const on=b.status&&b.status.connected;
+    const avatar=(b.status&&b.status.avatar)||'';
+    const name=(b.status&&b.status.name)||b.label;
+    return `<div class="brow">
+      ${avatarHTML(name,avatar)}
+      <div class="bi"><div class="l">${esc((b.status&&b.status.name)||b.label)}</div>
+        <div class="s"><span class="dot ${on?'on':''}"></span>${b.mode==='onebot'?'个人号':'官方号'} · ${on?'在线':'离线'}${((b.status&&b.status.name)&&b.status.name!==b.label)?' · '+esc(b.label):''}</div></div>
+      <div class="ops">
+        ${on?`<button class="btn sm ghost" onclick="botAction('${b.id}','stop')">停止</button>`
+            :`<button class="btn sm ghost" onclick="botAction('${b.id}','start')">启动</button>`}
+        <button class="btn sm danger" onclick="delBot('${b.id}','${esc(b.label)}')">删除</button>
+      </div></div>`;
+  }).join('') : `<div class="empty" style="padding:34px 10px">还没有账号<br>在下面添加一个</div>`;
 }
-async function botAction(id,act){await api(`/api/bots/${id}/${act}`,{method:'POST'});setTimeout(loadBots,500)}
+async function botAction(id,act){toast(act==='start'?'正在启动…':'已停止');await api(`/api/bots/${id}/${act}`,{method:'POST'});setTimeout(loadBots,900)}
+async function delBot(id,label){
+  if(!confirm(`确定删除「${label}」吗？`))return;
+  await api(`/api/bots/${id}`,{method:'DELETE'});
+  toast('已删除');loadBots();
+}
 async function addBot(){
   const mode=$('newMode').value;
-  const config = mode==='onebot'? {token:$('newToken').value} : {appid:$('newAppid').value,secret:$('newSecret').value};
-  await api('/api/bots',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({mode,label:$('newLabel').value||(mode==='onebot'?'个人号':'官方号'),config})});
-  $('newLabel').value=$('newToken').value=$('newAppid').value=$('newSecret').value='';
-  loadBots();
+  const label=$('newLabel').value.trim();
+  let config;
+  if(mode==='qqofficial'){
+    const appid=$('newAppid').value.trim(), secret=$('newSecret').value.trim();
+    if(!appid||!secret){toast('请填写 AppID 和 AppSecret');return}
+    config={appid,secret};
+  }else{
+    config={token:$('newToken').value.trim()};
+  }
+  const r=await api('/api/bots',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({mode,label:label||(mode==='qqofficial'?'官方机器人':'个人号'),config})});
+  if(r&&r.error){toast(r.error);return}
+  ['newLabel','newToken','newAppid','newSecret'].forEach(i=>$(i).value='');
+  toast('已添加');loadBots();
 }
 $('newMode')?.addEventListener('change',e=>{
   const q=e.target.value==='qqofficial';
-  $('newAppid').style.display=q?'block':'none'; $('newSecret').style.display=q?'block':'none';
+  $('newAppid').style.display=q?'block':'none';
+  $('newSecret').style.display=q?'block':'none';
   $('newToken').style.display=q?'none':'block';
+  $('addHint').textContent=q?'在 QQ 开放平台创建机器人后，把 AppID / AppSecret 填这里即可。'
+                            :'需另装 NapCat 登录 QQ，再把「反向 WebSocket」指向 '+srvWsBase()+'/onebot/v11/ws';
 });
 
-// ---- 会话 ----
+/* ---- 会话 ---- */
 function renderConvs(){
   const list=Object.values(convs).sort((a,b)=>b.ts-a.ts);
   $('convList').innerHTML = list.length? list.map(c=>`
     <div class="conv" onclick="openChat('${c.key}')">
-      ${avatar(c.name)}
-      <div class="mid"><div class="name">${esc(c.name)}</div><div class="preview">${esc(c.last)}</div></div>
-      <div style="text-align:right"><div class="time">${c.time||''}</div>${c.unread?`<div class="badge">${c.unread}</div>`:''}</div>
-    </div>`).join('') : `<div class="empty">暂无消息<br>收到消息后会出现在这里</div>`;
+      ${avatarHTML(c.name,c.avatar)}
+      <div class="mid"><div class="nm">${esc(c.name)}</div><div class="pv">${esc(c.last)}</div></div>
+      <div class="rt"><span class="tm">${c.time||''}</span>${c.unread?`<span class="bdg">${c.unread>99?'99+':c.unread}</span>`:''}</div>
+    </div>`).join('')
+    : `<div class="empty">
+        <svg width="66" height="66" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+        还没有消息<br>把机器人账号接上，收到的消息会出现在这里</div>`;
+  const total=Object.values(convs).reduce((s,c)=>s+(c.unread||0),0);
+  const tb=$('tabBadge');
+  if(total){tb.textContent=total>99?'99+':total;tb.classList.remove('hidden')}else tb.classList.add('hidden');
 }
 function openChat(key){
   const c=convs[key]; if(!c)return; cur=key; c.unread=0;
   $('page-chat').classList.remove('hidden'); $('page-msg').classList.add('hidden');
   $('topTitle').textContent='聊天'; $('chatTitle').textContent=c.name;
-  renderChat(); renderConvs(); switchTabUI('chat');
+  renderChat(); renderConvs();
 }
 function closeChat(){$('page-chat').classList.add('hidden');switchTab('msg')}
 function renderChat(){
   const c=convs[cur]; if(!c)return;
-  $('chatBody').innerHTML=c.msgs.map(m=>`<div class="row ${m.me?'me':''}">${avatar(m.me?'我':c.name)}<div class="bubble">${esc(m.text)}</div></div>`).join('');
+  let html=''; let lastTs=0;
+  c.msgs.forEach(m=>{
+    if(m.ts && m.ts-lastTs>300000){html+=`<div class="ts">${new Date(m.ts).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`;lastTs=m.ts}
+    html+=`<div class="row ${m.me?'me':''}">
+      ${avatarHTML(m.me?'我':(m.sender_name||c.name),m.me?'':m.sender_avatar)}
+      <div class="bwrap">${m.me?'':`<div class="sname">${esc(m.sender_name||c.name)}</div>`}
+      <div class="bub">${esc(m.text)}</div></div></div>`;
+  });
+  $('chatBody').innerHTML=html;
   $('chatBody').scrollTop=$('chatBody').scrollHeight;
 }
 async function sendMsg(){
   const t=$('chatText').value.trim(); if(!t||!cur)return;
-  const c=convs[cur]; c.msgs.push({text:t,me:true}); c.last=t; c.ts=Date.now(); c.time=now();
-  $('chatText').value=''; renderChat();
-  await api('/api/send',{method:'POST',headers:{'Content-Type':'application/json'},
+  const c=convs[cur]; c.msgs.push({text:t,me:true,ts:Date.now()}); c.last=t; c.ts=Date.now(); c.time=now();
+  $('chatText').value=''; renderChat(); renderConvs();
+  const r=await api('/api/send',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({bot_id:c.bot_id,scene:c.scene,peer_id:c.peer,text:t})});
-  renderConvs();
+  if(r&&r.error)toast('发送失败：'+r.error);
 }
 
-// ---- 插件 ----
+/* ---- 插件 ---- */
 async function loadPlugins(){
   const d=await api('/api/plugins');
-  $('pluginList').innerHTML = d.installed.length? d.installed.map(p=>`
-    <div class="botrow"><div style="flex:1"><div style="font-weight:500">${esc(p.name)} <span style="color:var(--txt2);font-size:12px">v${esc(p.version)}</span></div>
-    <div style="font-size:12px;color:var(--txt2)">${esc(p.description)}</div>
-    <div>${(p.hooks||[]).map(h=>`<span class="tag">${esc(h)}</span>`).join('')}</div></div></div>`).join('')
-    : `<div class="empty">还没有插件，上面装一个</div>`;
+  const list=(d&&d.installed)||[];
+  $('pluginCount').textContent=list.length?`(${list.length})`:'';
+  $('pluginList').innerHTML = list.length? list.map(p=>`
+    <div class="prow">
+      <div class="ph">
+        <div class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#12b7f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a2 2 0 114 0v1h3a1 1 0 011 1v3h1a2 2 0 110 4h-1v3a1 1 0 01-1 1h-3v-1a2 2 0 10-4 0v1H6a1 1 0 01-1-1v-3H4a2 2 0 110-4h1V6a1 1 0 011-1h3V4z"/></svg></div>
+        <div class="pn">${esc(p.name)}</div><div class="pver">v${esc(p.version||'?')}</div>
+      </div>
+      <div class="pd">${esc(p.description||'')}</div>
+      <div>${(p.hooks||[]).map(h=>`<span class="tag">${esc(h)}</span>`).join('')}</div>
+    </div>`).join('')
+    : `<div class="empty" style="padding:30px 10px">还没有插件</div>`;
 }
 async function scanRepo(){
-  const repo=$('repoUrl').value.trim(); if(!repo)return;
+  const repo=$('repoUrl').value.trim(); if(!repo)return toast('请填仓库地址');
   $('scanResult').textContent='扫描中…';
-  const d=await api('/api/plugins/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:repo})});
-  $('scanResult').innerHTML = d.plugins? `发现 ${d.plugins.length} 个插件：<br>`+d.plugins.map(p=>`· ${esc(p.name)} v${esc(p.version||'?')} — ${esc(p.description||'')}`).join('<br>') : esc(JSON.stringify(d));
+  try{
+    const d=await api('/api/plugins/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:repo})});
+    if(d.plugins&&d.plugins.length)
+      $('scanResult').innerHTML=`发现 <b>${d.plugins.length}</b> 个插件：<br>`+d.plugins.map(p=>`· ${esc(p.name)} <span style="color:#b7bcc5">v${esc(p.version||'?')}</span> — ${esc(p.description||'')}`).join('<br>');
+    else $('scanResult').textContent='没有发现插件（仓库里需要 plugin.json）';
+  }catch(e){$('scanResult').textContent='扫描失败：'+e.message}
 }
 async function installRepo(){
-  const repo=$('repoUrl').value.trim(); if(!repo)return;
+  const repo=$('repoUrl').value.trim(); if(!repo)return toast('请填仓库地址');
   $('scanResult').textContent='安装中…';
-  const d=await api('/api/plugins/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:repo})});
-  $('scanResult').textContent = d.installed? ('已安装：'+d.installed.join('、')) : JSON.stringify(d);
-  loadPlugins();
+  try{
+    const d=await api('/api/plugins/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:repo})});
+    $('scanResult').textContent = d.installed? ('已安装：'+d.installed.join('、')) : JSON.stringify(d);
+    loadPlugins();
+  }catch(e){$('scanResult').textContent='安装失败：'+e.message}
 }
 
-// ---- Tab ----
+/* ---- Tab ---- */
 function switchTabUI(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name))}
 function switchTab(name){
   curTab=name;
@@ -271,15 +411,18 @@ function switchTab(name){
   if(name==='plugin')loadPlugins(); if(name==='me')loadBots();
 }
 
-// ---- WebSocket ----
+/* ---- WebSocket ---- */
 function connect(){
-  const ws=new WebSocket(wsUrl());
+  let ws;
+  try{ws=new WebSocket(wsUrl())}catch(e){return setTimeout(connect,3000)}
   ws.onmessage=e=>{
-    const ev=JSON.parse(e.data);
-    if(ev.type==='message'){const d=ev.data;
+    let ev; try{ev=JSON.parse(e.data)}catch(_){return}
+    if(ev.type==='message'){
+      const d=ev.data;
       const key=`${d.bot_id}:${d.scene}:${d.peer_id}`;
-      if(!convs[key])convs[key]={key,name:d.sender_name||d.peer_id,bot_id:d.bot_id,scene:d.scene,peer:d.peer_id,msgs:[],unread:0};
-      convs[key].msgs.push({text:d.text,me:false});
+      if(!convs[key])convs[key]={key,name:d.sender_name||d.peer_name||d.peer_id,bot_id:d.bot_id,scene:d.scene,peer:d.peer_id,msgs:[],unread:0};
+      if(d.sender_avatar)convs[key].avatar=d.sender_avatar;
+      convs[key].msgs.push({text:d.text,me:false,ts:Date.now(),sender_name:d.sender_name,sender_avatar:d.sender_avatar});
       convs[key].last=d.text; convs[key].ts=Date.now(); convs[key].time=now();
       if(cur!==key)convs[key].unread++; else renderChat();
       renderConvs();
@@ -289,11 +432,10 @@ function connect(){
   ws.onclose=()=>setTimeout(connect,3000);
 }
 
-$('wsHint').textContent = srvWsBase()+'/onebot/v11/ws?bot=<账号id>';
-function saveSrv(){localStorage.setItem('akari_server',$('srvUrl').value.trim());location.reload()}
+/* ---- 初始化 ---- */
 $('srvUrl').value = localStorage.getItem('akari_server')||'';
 loadBots(); loadPlugins(); renderConvs(); connect();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 </script>
 </body>
 </html>

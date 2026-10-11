@@ -27,8 +27,13 @@ if BOTPY_OK:
 
         async def on_ready(self):
             self.adapter.connected = True
+            try:
+                self.adapter.bot_name = getattr(self.robot, "name", "") or ""
+                self.adapter.bot_avatar = getattr(self.robot, "avatar", "") or ""
+            except Exception:
+                pass
             await self.adapter.bus.publish({"type": "bot_status", **self.adapter.status()})
-            self.adapter.log(f"[qqofficial:{self.adapter.account_id}] 已上线：{self.robot.name}")
+            self.adapter.log(f"[qqofficial:{self.adapter.account_id}] 已上线：{getattr(self.robot, 'name', '?')}")
 
         async def on_group_at_message_create(self, message: "GroupMessage"):
             await self.adapter._ingest_group(message)
@@ -48,6 +53,8 @@ class QQOfficialAdapter(BaseAdapter):
         self.sandbox: bool = bool(cfg.get("sandbox", False))
         self._client = None
         self._task: asyncio.Task | None = None
+        self.bot_name = ""
+        self.bot_avatar = ""
 
     async def start(self) -> None:
         if not BOTPY_OK:
@@ -67,19 +74,51 @@ class QQOfficialAdapter(BaseAdapter):
             self.log(f"[qqofficial:{self.account_id}] 启动失败：{exc}")
             self.connected = False
 
+    async def _user_info(self, openid: str) -> dict[str, Any]:
+        """调官方 API 拿用户昵称/头像（失败则返回空，不阻塞消息）。"""
+        try:
+            token = None
+            api = getattr(self._client, "api", None)
+            for attr in ("token", "_token", "access_token"):
+                token = getattr(api, attr, None) or getattr(self._client, attr, None)
+                if token:
+                    break
+            if not token:
+                return {}
+            import httpx
+            async with httpx.AsyncClient(timeout=6) as c:
+                r = await c.get(
+                    f"https://api.sgroup.qq.com/v2/users/{openid}",
+                    headers={"Authorization": f"QQBot {token}", "X-Union-Appid": self.appid},
+                )
+                if r.status_code == 200:
+                    d = r.json()
+                    return {"name": d.get("username", ""), "avatar": d.get("avatar", "")}
+        except Exception as exc:
+            self.log(f"[qqofficial:{self.account_id}] 获取用户信息失败：{exc}")
+        return {}
+
     async def _ingest_group(self, message) -> None:
+        openid = str(message.author.member_openid)
+        info = await self._user_info(openid)
         msg = IncomingMessage(
             bot_id=self.account_id, mode=self.mode, scene="group",
-            peer_id=str(message.group_openid), sender_id=str(message.author.member_openid),
-            sender_name="", text=(message.content or "").strip(), raw={}, message_id=str(message.id),
+            peer_id=str(message.group_openid), sender_id=openid,
+            sender_name=info.get("name") or openid[-6:],
+            sender_avatar=info.get("avatar", ""),
+            text=(message.content or "").strip(), raw={}, message_id=str(message.id),
         )
         await self.bus.publish({"type": "message", "data": msg.__dict__})
 
     async def _ingest_c2c(self, message) -> None:
+        openid = str(message.author.user_openid)
+        info = await self._user_info(openid)
         msg = IncomingMessage(
             bot_id=self.account_id, mode=self.mode, scene="private",
-            peer_id=str(message.author.user_openid), sender_id=str(message.author.user_openid),
-            sender_name="", text=(message.content or "").strip(), raw={}, message_id=str(message.id),
+            peer_id=openid, sender_id=openid,
+            sender_name=info.get("name") or openid[-6:],
+            sender_avatar=info.get("avatar", ""),
+            text=(message.content or "").strip(), raw={}, message_id=str(message.id),
         )
         await self.bus.publish({"type": "message", "data": msg.__dict__})
 

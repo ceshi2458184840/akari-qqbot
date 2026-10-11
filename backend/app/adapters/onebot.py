@@ -55,11 +55,14 @@ class OneBotAdapter(BaseAdapter):
         scene = "group" if evt.get("message_type") == "group" else "private"
         peer = str(evt.get("group_id") if scene == "group" else evt.get("user_id"))
         sender = evt.get("sender", {}) or {}
+        qq = str(evt.get("user_id", ""))
+        avatar = f"https://q1.qlogo.cn/g?b=qq&nk={qq}&s=100" if qq else ""
         text = self._to_text(evt.get("message"))
         msg = IncomingMessage(
             bot_id=self.account_id, mode=self.mode, scene=scene, peer_id=peer,
-            sender_id=str(evt.get("user_id", "")),
-            sender_name=sender.get("card") or sender.get("nickname") or "",
+            sender_id=qq,
+            sender_name=sender.get("card") or sender.get("nickname") or qq,
+            sender_avatar=avatar,
             text=text, raw=evt, message_id=str(evt.get("message_id", "")),
         )
         await self.bus.publish({"type": "message", "data": msg.__dict__})

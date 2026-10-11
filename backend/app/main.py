@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -36,6 +37,14 @@ class Runtime:
         self.adapters: dict[str, Any] = {}
         self.plugins = PluginManager(PLUGINS_ROOT, self.bus, log=log)
         self.plugins.set_send_callback(self.send_message)
+        self.plugins.set_bots_provider(self.list_bots_with_status)
+
+    def list_bots_with_status(self) -> list[dict[str, Any]]:
+        out = []
+        for b in self.store.list_bots():
+            ad = self.adapters.get(b["id"])
+            out.append({**b, "status": ad.status() if ad else {"connected": False}})
+        return out
 
     def make_adapter(self, bot: dict[str, Any]):
         return OneBotAdapter(bot, self.bus, log) if bot["mode"] == "onebot" else QQOfficialAdapter(bot, self.bus, log)
@@ -113,18 +122,20 @@ async def health():
 
 @app.get("/api/bots")
 async def list_bots():
-    out = []
-    for b in rt.store.list_bots():
-        st = rt.adapters[b["id"]].status() if b["id"] in rt.adapters else {"connected": False}
-        out.append({**b, "status": st})
-    return out
+    return rt.list_bots_with_status()
 
 
 @app.post("/api/bots")
 async def add_bot(body: BotIn):
     if body.mode not in ("onebot", "qqofficial"):
-        raise HTTPException(400, "mode 必须是 onebot 或 qqofficial")
-    return rt.store.add_bot(body.mode, body.label or body.mode, body.config)
+        return JSONResponse({"error": "账号模式不支持"}, status_code=400)
+    if body.mode == "qqofficial":
+        cfg = body.config or {}
+        if not str(cfg.get("appid", "")).strip() or not str(cfg.get("secret", "")).strip():
+            return JSONResponse({"error": "官方机器人必须填写 AppID 和 AppSecret"}, status_code=400)
+    label = (body.label or "").strip() or ("官方机器人" if body.mode == "qqofficial" else "个人号")
+    bot = rt.store.add_bot(body.mode, label, body.config or {})
+    return bot
 
 
 @app.post("/api/bots/{bot_id}/start")
