@@ -212,6 +212,14 @@ async def ws_onebot(ws: WebSocket, bot: str = ""):
     await ad.handle_connection(ws)
 
 
+# ---------------- 静态前端 ----------------
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+
+
 def main() -> None:
     import uvicorn
     port = int(os.environ.get("AKARI_PORT", "8099"))
