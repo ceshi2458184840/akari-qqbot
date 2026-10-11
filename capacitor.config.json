@@ -1,0 +1,11 @@
+{
+  "appId": "icu.landisha.akaribot",
+  "appName": "AkariBot",
+  "webDir": "frontend",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

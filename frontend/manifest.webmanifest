@@ -1,0 +1,14 @@
+{
+  "name": "AkariBot Studio",
+  "short_name": "AkariBot",
+  "description": "仿 QQ 界面的 QQ 机器人客户端：个人号扫码 + 官方号 AppID 双模式，内置插件商店",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f3f5",
+  "theme_color": "#12b7f5",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

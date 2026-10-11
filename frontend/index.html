@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#12b7f5">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>AkariBot</title>
 <style>
   :root{
@@ -135,6 +141,12 @@
         <button class="btn" onclick="addBot()">添加</button>
         <div class="hint">个人号：需另装 NapCat，登录 QQ 后把「反向 WebSocket」指向 <b id="wsHint"></b></div>
       </div>
+      <h4>服务器地址（打包成 App 后必填）</h4>
+      <div class="card">
+        <input class="f" id="srvUrl" placeholder="https://你的后端地址（留空=当前站点）">
+        <button class="btn" onclick="saveSrv()">保存并重连</button>
+        <div class="hint">装成 App 后，这里填你部署 AkariBot 后端的地址，App 就能连上。</div>
+      </div>
     </div>
   </div>
 
@@ -156,7 +168,11 @@ function avatar(name,round=true){return `<div class="avatar ${round?'round':''}"
 function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 function now(){const d=new Date();return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')}
 
-async function api(path,opt){const r=await fetch(path,opt);return r.json()}
+const SRV=()=>localStorage.getItem('akari_server')||'';
+const apiUrl=p=>SRV().replace(/\/$/,'')+p;
+function wsUrl(){const s=SRV();return s? s.replace(/^http/,'ws').replace(/\/$/,'')+'/ws' : `ws://${location.host}/ws`}
+async function api(path,opt){const r=await fetch(apiUrl(path),opt);return r.json()}
+function srvWsBase(){return (SRV()||('ws://'+location.host)).replace(/^http/,'ws').replace(/\/$/,'')}
 
 // ---- 机器人 ----
 async function loadBots(){
@@ -256,7 +272,7 @@ function switchTab(name){
 
 // ---- WebSocket ----
 function connect(){
-  const ws=new WebSocket(`ws://${location.host}/ws`);
+  const ws=new WebSocket(wsUrl());
   ws.onmessage=e=>{
     const ev=JSON.parse(e.data);
     if(ev.type==='message'){const d=ev.data;
@@ -272,8 +288,11 @@ function connect(){
   ws.onclose=()=>setTimeout(connect,3000);
 }
 
-$('wsHint').textContent = `ws://${location.host}/onebot/v11/ws?bot=<账号id>`;
+$('wsHint').textContent = srvWsBase()+'/onebot/v11/ws?bot=<账号id>';
+function saveSrv(){localStorage.setItem('akari_server',$('srvUrl').value.trim());location.reload()}
+$('srvUrl').value = localStorage.getItem('akari_server')||'';
 loadBots(); loadPlugins(); renderConvs(); connect();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 </script>
 </body>
 </html>

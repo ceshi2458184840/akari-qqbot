@@ -1,0 +1,17 @@
+{
+  "name": "akari-qqbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AkariBot Studio - 仿QQ的QQ机器人客户端",
+  "scripts": {
+    "cap:sync": "cap sync android",
+    "cap:build": "cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3"
+  }
+}
