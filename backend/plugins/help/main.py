@@ -7,6 +7,16 @@ def _pad(items):
 
 
 def register(api):
+    async def _tool_list_plugins(_args):
+        plugins = api.list_plugins() or []
+        if not plugins:
+            return "当前没有已安装的插件"
+        return "已安装插件：\n" + "\n".join(
+            f"- {p.get('name')}: {p.get('description') or '（无说明）'}" for p in plugins)
+
+    api.tool("list_plugins", "列出机器人当前已安装的插件（技能）及其说明",
+             {"type": "object", "properties": {}}, _tool_list_plugins)
+
     @api.on("message")
     async def on_message(event):
         d = event.get("data", {})

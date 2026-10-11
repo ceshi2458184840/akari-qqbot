@@ -75,6 +75,10 @@ if BOTPY_OK:
         async def on_c2c_message_create(self, message: "C2CMessage"):
             await self.adapter._ingest_c2c(message)
 
+        async def on_interaction_create(self, interaction):
+            # 按钮点击回调
+            await self.adapter._ingest_interaction(interaction)
+
 
 class QQOfficialAdapter(BaseAdapter):
     mode = "qqofficial"
@@ -198,11 +202,51 @@ class QQOfficialAdapter(BaseAdapter):
                 md = MarkdownPayload(content=msg.text)
             except Exception:
                 md = {"content": msg.text}
-        kwargs: dict[str, Any] = {"msg_type": 2 if md else 0, "content": msg.text,
+        kwargs: dict[str, Any] = {"msg_type": 2 if (md or msg.keyboard) else 0, "content": msg.text,
                                   "msg_id": reply_id, "msg_seq": seq, "markdown": md}
+        if msg.keyboard:
+            kb = msg.keyboard
+            if isinstance(kb, dict) and "content" not in kb:
+                kb = {"content": kb}
+            kwargs["keyboard"] = kb
         if msg.scene == "group":
             return await self._client.api.post_group_message(group_openid=msg.peer_id, **kwargs)
         return await self._client.api.post_c2c_message(openid=msg.peer_id, **kwargs)
+
+    async def _ingest_interaction(self, interaction) -> None:
+        """按钮点击回调 —— 转成普通消息事件喂给插件（text 前缀 `btn:`）。"""
+        try:
+            res = interaction.data.resolved
+            button_data = str(getattr(res, "button_data", "") or "")
+            chat = str(getattr(interaction, "chat_type", "") or "")
+            group = str(getattr(interaction, "group_openid", "") or "")
+            user = str(getattr(interaction, "group_member_openid", "") or
+                       getattr(interaction, "user_openid", "") or "")
+            scene = "group" if (chat == "group" or group) else "private"
+            peer = group or user
+            if not button_data or not peer:
+                return
+            # 告知腾讯「已处理」并回复（被动），失败不影响流程
+            try:
+                await self._client.api.on_interaction_result(interaction.id, 0)
+            except Exception:
+                pass
+            info = await self._user_info(user) if user else {}
+            raw = {"button_data": button_data, "interaction_id": interaction.id,
+                   "group_openid": group, "member_openid": user, "message_type": "interaction",
+                   "target_msg": str(getattr(res, "message_id", "") or "")}
+            if getattr(res, "message_id", None):
+                self._remember(scene, peer, str(res.message_id))
+            msg = IncomingMessage(
+                bot_id=self.account_id, mode=self.mode, scene=scene, peer_id=peer,
+                sender_id=user, sender_name=info.get("name") or user[-6:],
+                sender_avatar=info.get("avatar", ""),
+                text=f"btn:{button_data}", raw=raw,
+                message_id=str(getattr(res, "message_id", "") or ""),
+            )
+            await self.bus.publish({"type": "message", "data": msg.__dict__})
+        except Exception as exc:
+            self.log(f"[qqofficial:{self.account_id}] 按钮回调处理失败：{exc}")
 
     async def stop(self) -> None:
         if self._task:

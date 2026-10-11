@@ -53,6 +53,23 @@ class PluginAPI:
     def save_config(self, data: dict[str, Any]) -> None:
         self._m.save_config(self.name, data)
 
+    # ---- 工具（供 AI 插件 function calling 调用）----
+    def tool(self, name: str, description: str, parameters: dict[str, Any],
+             handler: Callable[..., Awaitable[Any]]) -> None:
+        """注册一个可被 AI 调用的工具。
+
+        handler(args: dict) -> 返回值（会被转成字符串喂回模型）。
+        """
+        self._m.register_tool(self.name, name, description, parameters, handler)
+
+    def tools(self) -> list[dict[str, Any]]:
+        """当前所有可用工具（OpenAI function calling 格式）。"""
+        return self._m.tools()
+
+    async def run_tool(self, name: str, args: dict[str, Any]) -> str:
+        """执行一个工具（AI 插件用）。"""
+        return await self._m.run_tool(name, args)
+
 
 class PluginManager:
     def __init__(self, root: str, bus, log=print):
@@ -64,7 +81,36 @@ class PluginManager:
         self._send_cb: Callable[..., Awaitable[dict]] | None = None
         self._bots_provider: Callable[[], list] | None = None
         self._adapter_provider: Callable[[str], Any] | None = None
+        self._tools: dict[str, dict[str, Any]] = {}
         os.makedirs(self.root, exist_ok=True)
+
+    # ---- 工具注册表 ----
+    def register_tool(self, plugin: str, name: str, description: str,
+                      parameters: dict[str, Any], handler: Callable) -> None:
+        self._tools[name] = {"plugin": plugin, "name": name, "description": description,
+                             "parameters": parameters or {"type": "object", "properties": {}},
+                             "handler": handler}
+        self.log(f"[plugin] {plugin} 注册工具 {name}")
+
+    def tools(self) -> list[dict[str, Any]]:
+        """OpenAI function calling 格式的工具列表。"""
+        return [{"type": "function",
+                 "function": {"name": t["name"], "description": t["description"],
+                              "parameters": t["parameters"]}}
+                for t in self._tools.values()]
+
+    def tool_names(self) -> list[str]:
+        return list(self._tools)
+
+    async def run_tool(self, name: str, args: dict[str, Any]) -> str:
+        t = self._tools.get(name)
+        if not t:
+            return f"（没有名为 {name} 的工具）"
+        try:
+            res = await t["handler"](args or {})
+            return res if isinstance(res, str) else json.dumps(res, ensure_ascii=False)
+        except Exception as exc:
+            return f"（工具 {name} 执行出错：{exc}）"
 
     # ---- 供 main 注入「发消息」能力 ----
     def set_send_callback(self, cb: Callable[..., Awaitable[dict]]) -> None:
@@ -106,6 +152,8 @@ class PluginManager:
         """重新加载单个插件（改配置后让它生效）。"""
         for ev in list(self._handlers):
             self._handlers[ev] = [(p, f) for p, f in self._handlers[ev] if p != name]
+        for tool_name in [k for k, v in self._tools.items() if v["plugin"] == name]:
+            self._tools.pop(tool_name, None)
         meta = self.installed.get(name)
         if meta:
             self.load(meta)

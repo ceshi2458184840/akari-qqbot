@@ -1,1 +1,6 @@
-{}
+{
+  "base": "https://www.sophnet.com/api/open-apis/v1",
+  "key": "BM18sOHiIpDuYGkXoTJkjV8a-DnGZF4Lyq9nCtR7aULDEVqo0PGuoe6ERcJ8-IexnwLKCqi2tHaDe2TqgBVFzg",
+  "model": "DeepSeek-Flash",
+  "system": ""
+}

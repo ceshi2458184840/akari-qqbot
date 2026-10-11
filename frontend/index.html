@@ -220,7 +220,10 @@
         </div>
         <div class="hint" id="scanResult">填一个仓库地址，一键拉取它下面所有插件（含子文件夹）。</div>
       </div>
-      <h4>已安装插件 <span id="pluginCount" style="color:var(--blue)"></span></h4>
+      <h4 style="display:flex;align-items:center;justify-content:space-between">
+        <span>已安装插件 <span id="pluginCount" style="color:var(--blue)"></span></span>
+        <span><button class="btn sm" onclick="reloadPlugins()">热重载</button></span>
+      </h4>
       <div class="card flat" style="padding:0 14px" id="pluginList"></div>
     </div>
   </div>
@@ -456,6 +459,13 @@ async function saveCfg(){
   document.querySelectorAll('#cfgFields input').forEach(i=>{vals[i.id.slice(4)]=i.value});
   await api(`/api/plugins/${cfgName}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(vals)});
   closeCfg(); toast('已保存并重载'); loadPlugins();
+}
+async function reloadPlugins(){
+  try{
+    const d=await api('/api/plugins/reload',{method:'POST'});
+    toast(`已热重载 ${d.plugins} 个插件 · ${(d.tools||[]).length} 个工具`);
+    loadPlugins();
+  }catch(e){toast('热重载失败：'+e.message)}
 }
 async function scanRepo(){
   const repo=$('repoUrl').value.trim(); if(!repo)return toast('请填仓库地址');

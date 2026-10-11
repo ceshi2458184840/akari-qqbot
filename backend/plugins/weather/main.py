@@ -24,6 +24,19 @@ async def _weather(city: str) -> str:
 
 
 def register(api):
+    async def _tool_weather(args):
+        city = (args or {}).get("city") or (api.config or {}).get("default_city") or DEFAULT_CITY
+        try:
+            return await _weather(city)
+        except Exception as exc:
+            return f"查天气失败：{exc}"
+
+    api.tool("get_weather", "查询指定城市的实时天气（天气现象、气温、体感、湿度、风速）",
+             {"type": "object",
+              "properties": {"city": {"type": "string", "description": "城市名，如 北京、上海、Tokyo"}},
+              "required": ["city"]},
+             _tool_weather)
+
     @api.on("message")
     async def on_message(event):
         d = event.get("data", {})

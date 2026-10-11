@@ -5,12 +5,7 @@ START = time.time()
 
 
 def register(api):
-    @api.on("message")
-    async def on_message(event):
-        d = event.get("data", {})
-        text = (d.get("text") or "").strip()
-        if text not in ("/status", "状态", "/状态", "#status"):
-            return
+    def _snapshot() -> str:
         bots = api.get_bots() or []
         plugins = api.list_plugins() or []
         online = [b for b in bots if (b.get("status") or {}).get("connected")]
@@ -24,4 +19,18 @@ def register(api):
             st = b.get("status") or {}
             lines.append(f"  {'●' if st.get('connected') else '○'} {st.get('name') or b.get('label')}")
         lines.append("╰────────────────╯")
-        await api.send(d["bot_id"], d["scene"], d["peer_id"], "\n".join(lines))
+        return "\n".join(lines)
+
+    async def _tool_status(_args):
+        return _snapshot()
+
+    api.tool("get_bot_status", "查询机器人自身的运行状态（在线账号数、插件数量、运行时长）",
+             {"type": "object", "properties": {}}, _tool_status)
+
+    @api.on("message")
+    async def on_message(event):
+        d = event.get("data", {})
+        text = (d.get("text") or "").strip()
+        if text not in ("/status", "状态", "/状态", "#status"):
+            return
+        await api.send(d["bot_id"], d["scene"], d["peer_id"], _snapshot())

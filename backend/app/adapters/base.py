@@ -34,6 +34,7 @@ class OutgoingMessage:
     text: str
     reply_to: Optional[str] = None
     markdown: bool = False
+    keyboard: Any = None
 
 
 class BaseAdapter:

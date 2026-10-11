@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 from typing import Any
@@ -221,6 +222,67 @@ async def set_plugin_config(name: str, body: dict[str, Any]):
     rt.plugins.save_config(name, body or {})
     rt.plugins.reload(name)
     return {"ok": True, "name": name}
+
+
+@app.get("/api/tools")
+async def list_tools():
+    """当前所有可被 AI 调用的工具。"""
+    return {"tools": rt.plugins.tools()}
+
+
+@app.post("/api/ai/ask")
+async def ai_ask(body: dict[str, Any]):
+    """调试用：直接跑一次 AI（含工具调用），返回回复 + 用了哪些工具。"""
+    import httpx
+    text = str(body.get("text") or "").strip()
+    if not text:
+        return JSONResponse({"error": "text 为空"}, status_code=400)
+    c = rt.plugins.load_config("ai")
+    base = (c.get("base") or "http://127.0.0.1:12111/v1").rstrip("/")
+    model = c.get("model") or "qwen3.8-27b"
+    key = c.get("key") or ""
+    tools = rt.plugins.tools()
+    msgs: list[dict] = [
+        {"role": "system", "content": "你是助手。涉及实时信息（天气、状态）必须调用工具，不要编造。"},
+        {"role": "user", "content": text}]
+    used: list[str] = []
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    async with httpx.AsyncClient(timeout=90) as cli:
+        for _ in range(4):
+            payload: dict = {"model": model, "messages": msgs}
+            if tools:
+                payload["tools"] = tools
+            r = await cli.post(f"{base}/chat/completions", headers=headers, json=payload)
+            d = r.json()
+            if not d.get("choices"):
+                return JSONResponse({"error": str(d)[:300]}, status_code=502)
+            m = d["choices"][0]["message"]
+            calls = m.get("tool_calls") or []
+            if not calls:
+                return {"reply": (m.get("content") or "").strip(), "tools_used": used, "model": model}
+            msgs.append({"role": "assistant", "content": m.get("content") or "", "tool_calls": calls})
+            for tc in calls:
+                fn = (tc.get("function") or {}).get("name", "")
+                try:
+                    args = json.loads((tc.get("function") or {}).get("arguments") or "{}")
+                except Exception:
+                    args = {}
+                res = await rt.plugins.run_tool(fn, args)
+                used.append(fn)
+                msgs.append({"role": "tool", "tool_call_id": tc.get("id", ""), "content": str(res)})
+    return {"reply": "（步骤过多）", "tools_used": used, "model": model}
+
+
+@app.post("/api/plugins/reload")
+async def reload_plugins():
+    """热重载所有插件（改了代码/配置不用重启后端）。"""
+    names = list(rt.plugins.installed)
+    for n in names:
+        rt.plugins.reload(n)
+    tools = [t["function"]["name"] for t in rt.plugins.tools()]
+    return {"ok": True, "plugins": len(names), "tools": tools}
 
 
 # ---------------- WebSocket ----------------
