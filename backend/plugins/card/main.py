@@ -1,34 +1,41 @@
 """卡片 / 按钮消息插件。
 
-发送「菜单」/「/卡片」→ 机器人回一张带按钮的卡片。
-点按钮（回调型 action.type=1）→ 触发 interaction → 转成 `btn:<data>` 事件 → 这里响应。
+发送「菜单」→ 机器人回一张带按钮的卡片。
+按钮默认是「指令型」(action.type=2)：点一下把命令填进输入框，回车即执行——
+不需要在开放平台配回调地址，最稳。
 
-按钮编排集中在 BUTTONS：data 是动作名，处理器在 _handle 里。
+想用「回调型」（点一下机器人立刻应答）就把配置 button_mode 改成 callback，
+但那需要在 QQ 开放平台配好事件回调地址，否则客户端会提示「请求第三方失败」。
+数据：每行两个按钮，第二个元素既是显示的命令也是回调数据。
 """
 import httpx
 
 BUTTONS = [
-    [("查天气", "weather"), ("运行状态", "status")],
-    [("看看插件", "plugins"), ("打招呼", "hi")],
+    [("查天气", "/天气 北京"), ("现在几点", "/时间")],
+    [("运行状态", "/status"), ("看技能", "/help")],
 ]
 
 
-def _keyboard() -> dict:
+def _keyboard(mode: str = "command") -> dict:
     rows = []
     for row in BUTTONS:
         btns = []
         for i, (label, data) in enumerate(row):
+            act = {"type": 1 if mode == "callback" else 2, "permission": {"type": 2},
+                   "data": data, "unsupport_tips": "请升级到最新版 QQ"}
             btns.append({
-                "id": f"{data}_{i}",
+                "id": f"b{i}_{abs(hash(data)) % 9999}",
                 "render_data": {"label": label, "visited_label": label, "style": 1 if i == 0 else 0},
-                "action": {"type": 1, "permission": {"type": 2}, "data": data,
-                           "unsupport_tips": "请升级到最新版 QQ"},
+                "action": act,
             })
         rows.append({"buttons": btns})
     return {"content": {"rows": rows}}
 
 
 def register(api):
+    def mode() -> str:
+        return (api.config or {}).get("button_mode") or "command"
+
     async def _weather(city="北京"):
         url = f"https://wttr.in/{city}?format=j1&lang=zh"
         async with httpx.AsyncClient(timeout=20) as c:
@@ -38,9 +45,10 @@ def register(api):
         desc = ((cur.get("lang_zh") or cur.get("weatherDesc") or [{}])[0].get("value")) or ""
         return f"{city}：{desc} {cur.get('temp_C','?')}℃（体感 {cur.get('FeelsLikeC','?')}℃）"
 
-    async def _handle(api_, d, action):
-        scene, bot_id, peer = d.get("scene"), d["bot_id"], d["peer_id"]
-        if action == "weather":
+    async def _handle(d, action):
+        if action.startswith("/"):
+            return None                     # 指令型数据：交回正常指令流程
+        if "天气" in action:
             try:
                 return await _weather("北京")
             except Exception as exc:
@@ -49,8 +57,6 @@ def register(api):
             return await api.run_tool("get_bot_status", {})
         if action == "plugins":
             return await api.run_tool("list_plugins", {})
-        if action == "hi":
-            return "嗨～我在的，有什么需要尽管说！"
         return f"收到按钮：{action}"
 
     @api.on("message")
@@ -58,22 +64,19 @@ def register(api):
         d = event.get("data", {})
         text = (d.get("text") or "").strip()
 
-        # 1) 按钮回调
+        # 1) 回调型按钮点击
         if text.startswith("btn:"):
-            await api.send(d["bot_id"], d["scene"], d["peer_id"],
-                           await _handle(api, d, text[4:].strip()))
+            reply = await _handle(d, text[4:].strip())
+            if reply:
+                await api.send(d["bot_id"], d["scene"], d["peer_id"], reply)
             return
 
         # 2) 触发卡片
         if text in ("菜单", "/菜单", "/卡片", "卡片", "/card"):
-            title = (api.config or {}).get("title") or "AkariBot 功能菜单"
-            try:
-                msg = await api.send_card(d["bot_id"], d["scene"], d["peer_id"],
-                                          title, _keyboard(), fallback=True)
-                if msg is not None:
-                    return
-            except Exception as exc:
-                api.log(f"[card] 卡片发送失败，降级纯文本：{exc}")
-            await api.send(d["bot_id"], d["scene"], d["peer_id"],
-                           "卡片发不出来（可能机器人没开通卡片权限）。\n"
-                           "可用指令：/天气 城市、/status、/help")
+            title = (api.config or {}).get("title") or "AkariBot 功能菜单 · 点按钮试试"
+            msg = await api.send_card(d["bot_id"], d["scene"], d["peer_id"],
+                                      title, _keyboard(mode()), fallback=True)
+            if msg is None:
+                await api.send(d["bot_id"], d["scene"], d["peer_id"],
+                               "卡片发不出来（机器人可能没有卡片 / Markdown 权限）。\n"
+                               "可用指令：/天气 城市、/时间、/status、/help")

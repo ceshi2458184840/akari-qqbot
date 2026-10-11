@@ -163,6 +163,13 @@
          font-size:14px;padding:11px 20px;border-radius:12px;opacity:0;transition:opacity .22s,transform .22s;
          pointer-events:none;z-index:99;max-width:80%;text-align:center;backdrop-filter:blur(8px)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+  /* 启动封面 */
+  #splash{position:fixed;inset:0;z-index:9999;background:#08111f;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+          transition:opacity .55s ease}
+  #splash img{width:78%;max-width:420px;border-radius:20px;box-shadow:0 18px 50px rgba(18,183,245,.28)}
+  #splash .spl-tip{color:#6f8bab;font-size:13px;letter-spacing:2px}
+  #splash.hide{opacity:0;pointer-events:none}
   /* 我的页封面 */
   .cover{position:relative;margin:10px 12px 2px;border-radius:14px;overflow:hidden;
          box-shadow:0 6px 18px rgba(18,183,245,.18)}
@@ -185,6 +192,10 @@
 </style>
 </head>
 <body>
+<div id="splash">
+  <img src="splash.jpg" alt="AkariBot">
+  <div class="spl-tip">正在唤醒 AkariBot…</div>
+</div>
 <div class="phone">
   <div class="nav">
     <span class="title" id="topTitle">消息</span>
@@ -532,6 +543,7 @@ function connect(){
 }
 
 /* ---- 初始化 ---- */
+setTimeout(()=>{const s=$('splash'); if(s) s.classList.add('hide')}, 1800);
 $('srvUrl').value = localStorage.getItem('akari_server')||'';
 loadBots(); loadPlugins(); renderConvs(); connect();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});

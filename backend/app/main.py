@@ -293,6 +293,28 @@ async def reload_plugins():
     return {"ok": True, "plugins": len(names), "tools": tools}
 
 
+@app.get("/api/bots/{bot_id}/probe")
+async def probe_bot(bot_id: str, group: str = ""):
+    """自检：官方号 token 是否可用 + 群管权限（给个群 openid 就试调群信息）。"""
+    import httpx
+    ad = rt.adapters.get(bot_id)
+    if not ad:
+        return JSONResponse({"error": "账号未启动"}, status_code=400)
+    if not hasattr(ad, "auth_header"):
+        return {"ok": False, "reason": "该账号不是官方机器人（个人号无此限制）"}
+    auth = ad.auth_header()
+    if not auth:
+        return {"ok": False, "reason": "拿不到 token —— 机器人可能还没连上"}
+    out: dict[str, Any] = {"ok": True, "token": auth.split(" ")[0], "appid": ad.appid}
+    if group:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"https://api.sgroup.qq.com/v2/groups/{group}/info",
+                            headers={"Authorization": auth, "X-Union-Appid": ad.appid})
+        out["group_info_status"] = r.status_code
+        out["group_info"] = r.json()
+    return out
+
+
 # ---------------- WebSocket ----------------
 @app.websocket("/ws")
 async def ws_frontend(ws: WebSocket):

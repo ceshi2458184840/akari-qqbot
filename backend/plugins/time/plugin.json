@@ -1,0 +1,10 @@
+{
+  "name": "time",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "description": "时间查询：发送「时间」/「/时间 纽约」查看当前时间和日期",
+  "hooks": ["message"],
+  "config": [
+    { "key": "timezone", "label": "默认时区", "placeholder": "Asia/Shanghai", "hint": "如 Asia/Shanghai、America/New_York" }
+  ]
+}

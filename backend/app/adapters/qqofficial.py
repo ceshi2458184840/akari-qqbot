@@ -130,22 +130,25 @@ class QQOfficialAdapter(BaseAdapter):
             self.log(f"[qqofficial:{self.account_id}] 启动失败：{exc}")
             self.connected = False
 
+    def auth_header(self) -> str | None:
+        """给官方 REST 用的 Authorization 值（形如 "QQBot <token>"）。"""
+        try:
+            tok = getattr(getattr(self._client, "http", None), "_token", None)
+            return tok.get_string() if tok is not None else None
+        except Exception:
+            return None
+
     async def _user_info(self, openid: str) -> dict[str, Any]:
         """调官方 API 拿用户昵称/头像（失败则返回空，不阻塞消息）。"""
         try:
-            token = None
-            api = getattr(self._client, "api", None)
-            for attr in ("token", "_token", "access_token"):
-                token = getattr(api, attr, None) or getattr(self._client, attr, None)
-                if token:
-                    break
-            if not token:
+            auth = self.auth_header()
+            if not auth:
                 return {}
             import httpx
             async with httpx.AsyncClient(timeout=6) as c:
                 r = await c.get(
                     f"https://api.sgroup.qq.com/v2/users/{openid}",
-                    headers={"Authorization": f"QQBot {token}", "X-Union-Appid": self.appid},
+                    headers={"Authorization": auth, "X-Union-Appid": self.appid},
                 )
                 if r.status_code == 200:
                     d = r.json()
