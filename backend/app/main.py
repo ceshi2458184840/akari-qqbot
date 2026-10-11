@@ -1,0 +1,222 @@
+"""AkariBot Studio 后端入口。
+
+统一装配：Store(持久化) + EventBus(总线) + Adapters(双模式) + PluginManager(插件) + FastAPI。
+"""
+from __future__ import annotations
+
+import asyncio
+import os
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from .bus import EventBus
+from .store import Store
+from .adapters.onebot import OneBotAdapter
+from .adapters.qqofficial import QQOfficialAdapter
+from .plugin.loader import PluginManager
+from .plugin import store as plugin_store
+
+HOME = os.path.expanduser("~/.akari-qqbot")
+DATA_DIR = os.environ.get("AKARI_DATA_DIR", HOME)
+PLUGINS_ROOT = os.path.join(DATA_DIR, "plugins")
+
+
+def log(*a):
+    print("[akari]", *a, flush=True)
+
+
+class Runtime:
+    def __init__(self) -> None:
+        self.store = Store(os.path.join(DATA_DIR, "data.sqlite3"))
+        self.bus = EventBus()
+        self.adapters: dict[str, Any] = {}
+        self.plugins = PluginManager(PLUGINS_ROOT, self.bus, log=log)
+        self.plugins.set_send_callback(self.send_message)
+
+    def make_adapter(self, bot: dict[str, Any]):
+        return OneBotAdapter(bot, self.bus, log) if bot["mode"] == "onebot" else QQOfficialAdapter(bot, self.bus, log)
+
+    async def start_bot(self, bot_id: str) -> dict[str, Any]:
+        bot = self.store.get_bot(bot_id)
+        if not bot:
+            raise HTTPException(404, "bot not found")
+        if bot_id in self.adapters:
+            return self.adapters[bot_id].status()
+        ad = self.make_adapter(bot)
+        self.adapters[bot_id] = ad
+        await ad.start()
+        self.store.set_enabled(bot_id, True)
+        return ad.status()
+
+    async def stop_bot(self, bot_id: str) -> None:
+        ad = self.adapters.pop(bot_id, None)
+        if ad:
+            await ad.stop()
+        self.store.set_enabled(bot_id, False)
+
+    async def send_message(self, bot_id: str, scene: str, peer_id: str, text: str) -> dict[str, Any]:
+        from .adapters.base import OutgoingMessage
+        ad = self.adapters.get(bot_id)
+        if not ad:
+            raise HTTPException(400, "bot 未启动")
+        return await ad.send(OutgoingMessage(bot_id=bot_id, mode=ad.mode, scene=scene, peer_id=peer_id, text=text))
+
+    async def on_bus_event(self, event: dict[str, Any]) -> None:
+        # 把消息事件同时喂给插件钩子
+        if event.get("type") == "message":
+            await self.plugins.dispatch("message", event)
+
+    async def boot(self) -> None:
+        self.bus.register_hook(self.on_bus_event)
+        self.plugins.load_all()
+        for bot in self.store.list_bots():
+            if bot["enabled"]:
+                try:
+                    await self.start_bot(bot["id"])
+                except Exception as exc:
+                    log(f"自动启动 {bot['id']} 失败：{exc}")
+
+    async def shutdown(self) -> None:
+        for bid in list(self.adapters):
+            await self.stop_bot(bid)
+
+
+rt = Runtime()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await rt.boot()
+    yield
+    await rt.shutdown()
+
+
+app = FastAPI(title="AkariBot Studio", version="0.1.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+# ---------------- REST ----------------
+class BotIn(BaseModel):
+    mode: str                      # onebot | qqofficial
+    label: str = ""
+    config: dict[str, Any] = {}
+
+
+@app.get("/api/health")
+async def health():
+    return {"ok": True, "bots": len(rt.store.list_bots()), "plugins": len(rt.plugins.installed)}
+
+
+@app.get("/api/bots")
+async def list_bots():
+    out = []
+    for b in rt.store.list_bots():
+        st = rt.adapters[b["id"]].status() if b["id"] in rt.adapters else {"connected": False}
+        out.append({**b, "status": st})
+    return out
+
+
+@app.post("/api/bots")
+async def add_bot(body: BotIn):
+    if body.mode not in ("onebot", "qqofficial"):
+        raise HTTPException(400, "mode 必须是 onebot 或 qqofficial")
+    return rt.store.add_bot(body.mode, body.label or body.mode, body.config)
+
+
+@app.post("/api/bots/{bot_id}/start")
+async def start_bot(bot_id: str):
+    return await rt.start_bot(bot_id)
+
+
+@app.post("/api/bots/{bot_id}/stop")
+async def stop_bot(bot_id: str):
+    await rt.stop_bot(bot_id)
+    return {"ok": True}
+
+
+@app.delete("/api/bots/{bot_id}")
+async def delete_bot(bot_id: str):
+    await rt.stop_bot(bot_id)
+    rt.store.delete_bot(bot_id)
+    return {"ok": True}
+
+
+@app.post("/api/send")
+async def send(body: dict[str, Any]):
+    return await rt.send_message(body["bot_id"], body.get("scene", "group"), str(body["peer_id"]), body["text"])
+
+
+# ---------------- 插件 ----------------
+@app.get("/api/plugins")
+async def list_plugins():
+    return {"installed": rt.plugins.info(), "registry": rt.store.list_plugins()}
+
+
+@app.post("/api/plugins/scan")
+async def scan_plugins(body: dict[str, Any]):
+    """扫描一个 Git 仓库里有哪些插件（不安装）。"""
+    repo = body.get("repo_url", "").strip()
+    if not repo:
+        raise HTTPException(400, "repo_url 必填")
+    try:
+        found = plugin_store.scan_repo(repo, log=log)
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+    return {"repo": repo, "plugins": [{k: v for k, v in m.items() if not k.startswith("_")} | {"path": m.get("_path")} for m in found]}
+
+
+@app.post("/api/plugins/install")
+async def install_plugins(body: dict[str, Any]):
+    """安装一个 Git 仓库下的全部插件。"""
+    repo = body.get("repo_url", "").strip()
+    if not repo:
+        raise HTTPException(400, "repo_url 必填")
+    try:
+        installed = plugin_store.install_repo(repo, PLUGINS_ROOT, log=log)
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+    for m in installed:
+        rt.store.upsert_plugin(m.get("name", ""), m.get("version", "0"), repo, m.get("_installed_path", ""))
+        rt.plugins.load(m)
+    return {"installed": [m.get("name") for m in installed]}
+
+
+# ---------------- WebSocket ----------------
+@app.websocket("/ws")
+async def ws_frontend(ws: WebSocket):
+    """前端订阅：接收 message / bot_status 事件。"""
+    await ws.accept()
+    q = rt.bus.subscribe()
+    try:
+        while True:
+            event = await q.get()
+            await ws.send_json(event)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        rt.bus.unsubscribe(q)
+
+
+@app.websocket("/onebot/v11/ws")
+async def ws_onebot(ws: WebSocket, bot: str = ""):
+    """NapCat（个人号）反向 WebSocket 接入点。"""
+    await ws.accept()
+    ad = rt.adapters.get(bot)
+    if not isinstance(ad, OneBotAdapter):
+        await ws.close(code=1008, reason="未知 bot_id")
+        return
+    await ad.handle_connection(ws)
+
+
+def main() -> None:
+    import uvicorn
+    port = int(os.environ.get("AKARI_PORT", "8099"))
+    uvicorn.run(app, host=os.environ.get("AKARI_HOST", "127.0.0.1"), port=port)
+
+
+if __name__ == "__main__":
+    main()

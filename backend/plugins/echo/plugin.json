@@ -1,0 +1,7 @@
+{
+  "name": "echo",
+  "version": "0.1.0",
+  "entry": "main.py",
+  "description": "复读机示例插件：群里 /echo 开头就复读",
+  "hooks": ["message"]
+}
