@@ -216,6 +216,10 @@ async def ws_onebot(ws: WebSocket, bot: str = ""):
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+# APK / 文件下载（必须在根挂载之前，否则被 catch-all 吃掉）
+DL_DIR = os.environ.get("AKARI_DL_DIR", "/var/www/apk")
+if os.path.isdir(DL_DIR):
+    app.mount("/dl", StaticFiles(directory=DL_DIR), name="dl")
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
