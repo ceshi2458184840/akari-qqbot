@@ -32,6 +32,19 @@ class PluginAPI:
     async def send(self, bot_id: str, scene: str, peer_id: str, text: str) -> dict[str, Any]:
         return await self._m.send(bot_id, scene, peer_id, text)
 
+    async def send_card(self, bot_id: str, scene: str, peer_id: str, text: str,
+                        keyboard: dict[str, Any], fallback: bool = False) -> dict[str, Any] | None:
+        """发一张带按钮的卡片（markdown + 键盘）。
+
+        fallback=True 时，失败返回 None 而不是抛异常（插件可降级成纯文本）。
+        """
+        try:
+            return await self._m.send_card(bot_id, scene, peer_id, text, keyboard)
+        except Exception:
+            if fallback:
+                return None
+            raise
+
     def list_plugins(self) -> list[dict[str, Any]]:
         """当前已安装插件列表。"""
         return self._m.info()
@@ -79,6 +92,7 @@ class PluginManager:
         self.installed: dict[str, dict[str, Any]] = {}
         self._handlers: dict[str, list[tuple[str, Callable]]] = {}
         self._send_cb: Callable[..., Awaitable[dict]] | None = None
+        self._card_cb: Callable[..., Awaitable[dict]] | None = None
         self._bots_provider: Callable[[], list] | None = None
         self._adapter_provider: Callable[[str], Any] | None = None
         self._tools: dict[str, dict[str, Any]] = {}
@@ -115,6 +129,15 @@ class PluginManager:
     # ---- 供 main 注入「发消息」能力 ----
     def set_send_callback(self, cb: Callable[..., Awaitable[dict]]) -> None:
         self._send_cb = cb
+
+    def set_card_callback(self, cb: Callable[..., Awaitable[dict]]) -> None:
+        self._card_cb = cb
+
+    async def send_card(self, bot_id: str, scene: str, peer_id: str, text: str,
+                        keyboard: dict[str, Any]) -> dict[str, Any]:
+        if not self._card_cb:
+            raise RuntimeError("card callback 未注入")
+        return await self._card_cb(bot_id, scene, peer_id, text, keyboard)
 
     async def send(self, bot_id: str, scene: str, peer_id: str, text: str) -> dict[str, Any]:
         if not self._send_cb:

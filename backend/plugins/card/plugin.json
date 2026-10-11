@@ -1,0 +1,10 @@
+{
+  "name": "card",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "description": "卡片/按钮消息：发送「菜单」弹出带按钮的卡片，点按钮机器人会响应",
+  "hooks": ["message"],
+  "config": [
+    { "key": "title", "label": "卡片标题", "placeholder": "AkariBot 功能菜单", "hint": "卡片顶部的标题文字" }
+  ]
+}

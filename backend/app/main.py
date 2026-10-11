@@ -38,6 +38,7 @@ class Runtime:
         self.adapters: dict[str, Any] = {}
         self.plugins = PluginManager(PLUGINS_ROOT, self.bus, log=log)
         self.plugins.set_send_callback(self.send_message)
+        self.plugins.set_card_callback(self.send_card)
         self.plugins.set_bots_provider(self.list_bots_with_status)
         self.plugins.set_adapter_provider(lambda bid: self.adapters.get(bid))
 
@@ -70,13 +71,20 @@ class Runtime:
         self.store.set_enabled(bot_id, False)
 
     async def send_message(self, bot_id: str, scene: str, peer_id: str, text: str,
-                           markdown: bool = False) -> dict[str, Any]:
+                           markdown: bool = False, keyboard: Any = None) -> dict[str, Any]:
         from .adapters.base import OutgoingMessage
         ad = self.adapters.get(bot_id)
         if not ad:
             raise HTTPException(400, "该账号未启动")
         return await ad.send(OutgoingMessage(bot_id=bot_id, mode=ad.mode, scene=scene,
-                                             peer_id=peer_id, text=text, markdown=markdown))
+                                             peer_id=peer_id, text=text, markdown=markdown,
+                                             keyboard=keyboard))
+
+    async def send_card(self, bot_id: str, scene: str, peer_id: str, text: str,
+                        keyboard: dict[str, Any]) -> dict[str, Any]:
+        """发卡片消息（带按钮）。"""
+        return await self.send_message(bot_id, scene, peer_id, text,
+                                       markdown=True, keyboard=keyboard)
 
     async def on_bus_event(self, event: dict[str, Any]) -> None:
         # 把消息事件同时喂给插件钩子
