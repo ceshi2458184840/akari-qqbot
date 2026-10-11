@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 from .base import BaseAdapter, IncomingMessage, OutgoingMessage
@@ -55,6 +56,24 @@ class QQOfficialAdapter(BaseAdapter):
         self._task: asyncio.Task | None = None
         self.bot_name = ""
         self.bot_avatar = ""
+        # 被动回复上下文：peer_key -> {"id": 最近收到的 msg_id, "ts": 时间, "seq": 已回复次数}
+        self._recent: dict[str, dict[str, Any]] = {}
+
+    # ---- 被动回复：官方 API 要求回复带 msg_id 且在 5 分钟窗口内 ----
+    def _remember(self, scene: str, peer: str, msg_id: str) -> None:
+        if msg_id:
+            self._recent[f"{scene}:{peer}"] = {"id": msg_id, "ts": time.time(), "seq": 0}
+
+    def _reply_ctx(self, scene: str, peer: str) -> tuple[str | None, int]:
+        rec = self._recent.get(f"{scene}:{peer}")
+        if not rec:
+            return None, 1
+        if time.time() - rec["ts"] > 280:      # 超过窗口只能发主动消息（配额受限）
+            return None, 1
+        rec["seq"] += 1
+        if rec["seq"] > 5:                     # 同一 msg_id 最多回 5 条
+            return None, 1
+        return rec["id"], rec["seq"]
 
     async def start(self) -> None:
         if not BOTPY_OK:
@@ -100,18 +119,29 @@ class QQOfficialAdapter(BaseAdapter):
 
     async def _ingest_group(self, message) -> None:
         openid = str(message.author.member_openid)
+        self._remember("group", str(message.group_openid), str(message.id))
         info = await self._user_info(openid)
+        mentions = []
+        try:
+            for m in (getattr(message, "mentions", None) or []):
+                mentions.append(str(getattr(m, "id", "") or getattr(m, "member_openid", "")))
+        except Exception:
+            pass
+        raw = {"group_openid": str(message.group_openid), "member_openid": openid,
+               "mentions": [x for x in mentions if x],
+               "message_type": "group"}
         msg = IncomingMessage(
             bot_id=self.account_id, mode=self.mode, scene="group",
             peer_id=str(message.group_openid), sender_id=openid,
             sender_name=info.get("name") or openid[-6:],
             sender_avatar=info.get("avatar", ""),
-            text=(message.content or "").strip(), raw={}, message_id=str(message.id),
+            text=(message.content or "").strip(), raw=raw, message_id=str(message.id),
         )
         await self.bus.publish({"type": "message", "data": msg.__dict__})
 
     async def _ingest_c2c(self, message) -> None:
         openid = str(message.author.user_openid)
+        self._remember("private", openid, str(message.id))
         info = await self._user_info(openid)
         msg = IncomingMessage(
             bot_id=self.account_id, mode=self.mode, scene="private",
@@ -125,11 +155,21 @@ class QQOfficialAdapter(BaseAdapter):
     async def send(self, msg: OutgoingMessage) -> dict[str, Any]:
         if not self._client:
             raise RuntimeError("官方号未启动")
+        reply_id, seq = self._reply_ctx(msg.scene, msg.peer_id)
+        if msg.reply_to:
+            reply_id = msg.reply_to
+        md = None
+        if msg.markdown:
+            try:
+                from botpy.types.message import MarkdownPayload
+                md = MarkdownPayload(content=msg.text)
+            except Exception:
+                md = {"content": msg.text}
+        kwargs: dict[str, Any] = {"msg_type": 2 if md else 0, "content": msg.text,
+                                  "msg_id": reply_id, "msg_seq": seq, "markdown": md}
         if msg.scene == "group":
-            return await self._client.api.post_group_message(
-                group_openid=msg.peer_id, msg_type=0, content=msg.text, msg_id=msg.reply_to)
-        return await self._client.api.post_c2c_message(
-            openid=msg.peer_id, msg_type=0, content=msg.text, msg_id=msg.reply_to)
+            return await self._client.api.post_group_message(group_openid=msg.peer_id, **kwargs)
+        return await self._client.api.post_c2c_message(openid=msg.peer_id, **kwargs)
 
     async def stop(self) -> None:
         if self._task:

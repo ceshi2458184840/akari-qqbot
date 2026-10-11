@@ -1,0 +1,7 @@
+{
+  "name": "ai",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "description": "AI 对话：@机器人 或私聊即可对话（接任意 OpenAI 兼容接口）",
+  "hooks": ["message"]
+}

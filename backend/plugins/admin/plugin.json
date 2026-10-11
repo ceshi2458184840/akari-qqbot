@@ -1,0 +1,7 @@
+{
+  "name": "admin",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "description": "群聊管理：/禁言 60 @某人、/解禁 @某人、/撤回、/群信息",
+  "hooks": ["message"]
+}

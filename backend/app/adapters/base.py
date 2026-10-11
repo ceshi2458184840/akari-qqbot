@@ -33,6 +33,7 @@ class OutgoingMessage:
     peer_id: str
     text: str
     reply_to: Optional[str] = None
+    markdown: bool = False
 
 
 class BaseAdapter:

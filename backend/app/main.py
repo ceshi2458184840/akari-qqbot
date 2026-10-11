@@ -38,6 +38,7 @@ class Runtime:
         self.plugins = PluginManager(PLUGINS_ROOT, self.bus, log=log)
         self.plugins.set_send_callback(self.send_message)
         self.plugins.set_bots_provider(self.list_bots_with_status)
+        self.plugins.set_adapter_provider(lambda bid: self.adapters.get(bid))
 
     def list_bots_with_status(self) -> list[dict[str, Any]]:
         out = []
@@ -67,12 +68,14 @@ class Runtime:
             await ad.stop()
         self.store.set_enabled(bot_id, False)
 
-    async def send_message(self, bot_id: str, scene: str, peer_id: str, text: str) -> dict[str, Any]:
+    async def send_message(self, bot_id: str, scene: str, peer_id: str, text: str,
+                           markdown: bool = False) -> dict[str, Any]:
         from .adapters.base import OutgoingMessage
         ad = self.adapters.get(bot_id)
         if not ad:
-            raise HTTPException(400, "bot 未启动")
-        return await ad.send(OutgoingMessage(bot_id=bot_id, mode=ad.mode, scene=scene, peer_id=peer_id, text=text))
+            raise HTTPException(400, "该账号未启动")
+        return await ad.send(OutgoingMessage(bot_id=bot_id, mode=ad.mode, scene=scene,
+                                             peer_id=peer_id, text=text, markdown=markdown))
 
     async def on_bus_event(self, event: dict[str, Any]) -> None:
         # 把消息事件同时喂给插件钩子
@@ -158,7 +161,12 @@ async def delete_bot(bot_id: str):
 
 @app.post("/api/send")
 async def send(body: dict[str, Any]):
-    return await rt.send_message(body["bot_id"], body.get("scene", "group"), str(body["peer_id"]), body["text"])
+    try:
+        return await rt.send_message(
+            body["bot_id"], body.get("scene", "group"), str(body["peer_id"]),
+            body.get("text", ""), bool(body.get("markdown")))
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
 
 
 # ---------------- 插件 ----------------

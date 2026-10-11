@@ -43,6 +43,13 @@
   .page::-webkit-scrollbar{width:0}
   .hidden{display:none!important}
 
+  /* ============ 搜索框 ============ */
+  .searchwrap{padding:9px 12px 4px;background:var(--bg)}
+  .searchbox{display:flex;align-items:center;gap:7px;background:#fff;border-radius:10px;padding:8px 12px;
+             box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .searchbox input{flex:1;border:none;outline:none;font-size:14.5px;background:transparent;color:var(--txt)}
+  .searchbox input::placeholder{color:#a8adb6}
+
   /* ============ 会话列表 ============ */
   .convlist{padding:8px 0}
   .conv{display:flex;align-items:center;padding:11px 16px;background:var(--card);cursor:pointer;position:relative}
@@ -94,6 +101,9 @@
   .chat-in .snd{background:var(--blue);color:#fff;border:none;border-radius:19px;padding:10px 19px;
                 font-size:15px;font-weight:600;flex-shrink:0}
   .chat-in .snd:active{background:var(--blue-d)}
+  .chat-in .mdbtn{background:#eef1f4;color:#6b7280;border:none;border-radius:19px;padding:10px 12px;
+                  font-size:13px;font-weight:700;flex-shrink:0}
+  .chat-in .mdbtn.on{background:linear-gradient(180deg,#12b7f5,#0a9fe0);color:#fff}
 
   /* ============ 底部 Tab ============ */
   .tabs{display:flex;background:#fbfcfd;border-top:1px solid var(--line);flex-shrink:0;
@@ -163,7 +173,15 @@
   </div>
 
   <!-- 消息 -->
-  <div class="page" id="page-msg"><div class="convlist" id="convList"></div></div>
+  <div class="page" id="page-msg">
+    <div class="searchwrap">
+      <div class="searchbox">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa0aa" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="convSearch" placeholder="搜索" oninput="renderConvs()">
+      </div>
+    </div>
+    <div class="convlist" id="convList"></div>
+  </div>
 
   <!-- 聊天 -->
   <div class="page hidden" id="page-chat" style="display:flex;flex-direction:column">
@@ -173,6 +191,7 @@
     </div>
     <div class="chat-body" id="chatBody"></div>
     <div class="chat-in">
+      <button class="mdbtn" id="mdBtn" onclick="toggleMd()">MD</button>
       <input id="chatText" placeholder="输入消息" onkeydown="if(event.key==='Enter')sendMsg()">
       <button class="snd" onclick="sendMsg()">发送</button>
     </div>
@@ -321,7 +340,9 @@ $('newMode')?.addEventListener('change',e=>{
 
 /* ---- 会话 ---- */
 function renderConvs(){
-  const list=Object.values(convs).sort((a,b)=>b.ts-a.ts);
+  const q=($('convSearch')?.value||'').trim().toLowerCase();
+  let list=Object.values(convs).sort((a,b)=>b.ts-a.ts);
+  if(q) list=list.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.last||'').toLowerCase().includes(q));
   $('convList').innerHTML = list.length? list.map(c=>`
     <div class="conv" onclick="openChat('${c.key}')">
       ${avatarHTML(c.name,c.avatar)}
@@ -355,13 +376,23 @@ function renderChat(){
   $('chatBody').innerHTML=html;
   $('chatBody').scrollTop=$('chatBody').scrollHeight;
 }
+let mdMode=false;
+function toggleMd(){mdMode=!mdMode;$('mdBtn').classList.toggle('on',mdMode);toast(mdMode?'Markdown 模式已开':'已切回普通消息')}
 async function sendMsg(){
   const t=$('chatText').value.trim(); if(!t||!cur)return;
-  const c=convs[cur]; c.msgs.push({text:t,me:true,ts:Date.now()}); c.last=t; c.ts=Date.now(); c.time=now();
+  const c=convs[cur];
+  c.msgs.push({text:t,me:true,ts:Date.now(),md:mdMode}); c.last=t; c.ts=Date.now(); c.time=now();
   $('chatText').value=''; renderChat(); renderConvs();
-  const r=await api('/api/send',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({bot_id:c.bot_id,scene:c.scene,peer_id:c.peer,text:t})});
-  if(r&&r.error)toast('发送失败：'+r.error);
+  let r={};
+  try{
+    r=await api('/api/send',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({bot_id:c.bot_id,scene:c.scene,peer_id:c.peer,text:t,markdown:mdMode})});
+  }catch(e){r={error:e.message}}
+  if(r&&r.error){
+    toast('发送失败：'+r.error);
+    c.msgs.push({text:'⚠ 发送失败：'+r.error,me:true,ts:Date.now(),system:true});
+    renderChat();
+  }
 }
 
 /* ---- 插件 ---- */

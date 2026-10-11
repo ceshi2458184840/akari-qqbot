@@ -40,6 +40,10 @@ class PluginAPI:
         """当前所有账号（含连接状态）。"""
         return self._m.get_bots()
 
+    def get_adapter(self, bot_id: str):
+        """拿到某个账号的适配器实例（高级插件用，如群管）。"""
+        return self._m.get_adapter(bot_id)
+
 
 class PluginManager:
     def __init__(self, root: str, bus, log=print):
@@ -50,6 +54,7 @@ class PluginManager:
         self._handlers: dict[str, list[tuple[str, Callable]]] = {}
         self._send_cb: Callable[..., Awaitable[dict]] | None = None
         self._bots_provider: Callable[[], list] | None = None
+        self._adapter_provider: Callable[[str], Any] | None = None
         os.makedirs(self.root, exist_ok=True)
 
     # ---- 供 main 注入「发消息」能力 ----
@@ -63,6 +68,15 @@ class PluginManager:
 
     def set_bots_provider(self, cb: Callable[[], list]) -> None:
         self._bots_provider = cb
+
+    def set_adapter_provider(self, cb: Callable[[str], Any]) -> None:
+        self._adapter_provider = cb
+
+    def get_adapter(self, bot_id: str):
+        try:
+            return self._adapter_provider(bot_id) if self._adapter_provider else None
+        except Exception:
+            return None
 
     def get_bots(self) -> list:
         try:
