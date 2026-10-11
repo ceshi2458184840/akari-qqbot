@@ -19,6 +19,35 @@ except Exception:  # SDK 未装时不至于整个后端起不来
     BOTPY_OK = False
 
 
+def _patch_group_message_event() -> None:
+    """给 botpy 补上「群全量消息」事件。
+
+    botpy 1.2.1 的 ConnectionState 只注册了 parse_group_at_message_create（@机器人的），
+    没有 parse_group_message_create —— 当机器人被授权接收群全量消息时，腾讯推
+    group_message_create，解析表里查不到就 `_parser unknown event` 直接丢弃，
+    表现为「消息收不到」。这里补一个解析器，事件正常派发到 on_group_message_create。
+    """
+    try:
+        from botpy.connection import ConnectionState
+        from botpy.message import GroupMessage as _GM
+        if not hasattr(ConnectionState, "parse_group_message_create"):
+            def parse_group_message_create(self, payload):  # noqa: ANN001
+                _message = _GM(self.api, payload.get("id", None), payload.get("d", {}))
+                self._dispatch("group_message_create", _message)
+            ConnectionState.parse_group_message_create = parse_group_message_create  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+
+if BOTPY_OK:
+    _patch_group_message_event()
+
+
+def _https(u: str) -> str:
+    """QQ 头像 CDN 返回 http://，App 在 https 环境会拦混合内容 —— 统一升级。"""
+    return ("https://" + u[len("http://"):]) if u and u.startswith("http://") else (u or "")
+
+
 if BOTPY_OK:
 
     class _Client(botpy.Client):  # type: ignore[misc]
@@ -30,13 +59,17 @@ if BOTPY_OK:
             self.adapter.connected = True
             try:
                 self.adapter.bot_name = getattr(self.robot, "name", "") or ""
-                self.adapter.bot_avatar = getattr(self.robot, "avatar", "") or ""
+                self.adapter.bot_avatar = _https(getattr(self.robot, "avatar", "") or "")
             except Exception:
                 pass
             await self.adapter.bus.publish({"type": "bot_status", **self.adapter.status()})
             self.adapter.log(f"[qqofficial:{self.adapter.account_id}] 已上线：{getattr(self.robot, 'name', '?')}")
 
         async def on_group_at_message_create(self, message: "GroupMessage"):
+            await self.adapter._ingest_group(message)
+
+        async def on_group_message_create(self, message: "GroupMessage"):
+            # 群全量消息（机器人被授权接收时才有；补丁事件）
             await self.adapter._ingest_group(message)
 
         async def on_c2c_message_create(self, message: "C2CMessage"):
@@ -112,7 +145,7 @@ class QQOfficialAdapter(BaseAdapter):
                 )
                 if r.status_code == 200:
                     d = r.json()
-                    return {"name": d.get("username", ""), "avatar": d.get("avatar", "")}
+                    return {"name": d.get("username", ""), "avatar": _https(d.get("avatar", ""))}
         except Exception as exc:
             self.log(f"[qqofficial:{self.account_id}] 获取用户信息失败：{exc}")
         return {}

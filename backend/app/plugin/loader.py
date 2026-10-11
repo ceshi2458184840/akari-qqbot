@@ -44,6 +44,15 @@ class PluginAPI:
         """拿到某个账号的适配器实例（高级插件用，如群管）。"""
         return self._m.get_adapter(bot_id)
 
+    # ---- 插件配置 ----
+    @property
+    def config(self) -> dict[str, Any]:
+        """插件自己的配置（plugins/<name>/config.json，不存在则空 dict）。"""
+        return self._m.load_config(self.name)
+
+    def save_config(self, data: dict[str, Any]) -> None:
+        self._m.save_config(self.name, data)
+
 
 class PluginManager:
     def __init__(self, root: str, bus, log=print):
@@ -71,6 +80,35 @@ class PluginManager:
 
     def set_adapter_provider(self, cb: Callable[[str], Any]) -> None:
         self._adapter_provider = cb
+
+    # ---- 插件配置读写 ----
+    def _config_path(self, name: str) -> str:
+        return os.path.join(self.root, name, "config.json")
+
+    def load_config(self, name: str) -> dict[str, Any]:
+        p = self._config_path(name)
+        if os.path.isfile(p):
+            try:
+                return json.load(open(p, encoding="utf-8"))
+            except Exception:
+                return {}
+        return {}
+
+    def save_config(self, name: str, data: dict[str, Any]) -> None:
+        p = self._config_path(name)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp = p + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False, indent=2)
+        os.replace(tmp, p)
+
+    def reload(self, name: str) -> None:
+        """重新加载单个插件（改配置后让它生效）。"""
+        for ev in list(self._handlers):
+            self._handlers[ev] = [(p, f) for p, f in self._handlers[ev] if p != name]
+        meta = self.installed.get(name)
+        if meta:
+            self.load(meta)
 
     def get_adapter(self, bot_id: str):
         try:
@@ -137,6 +175,7 @@ class PluginManager:
     def info(self) -> list[dict[str, Any]]:
         return [
             {"name": m.get("name"), "version": m.get("version"),
-             "description": m.get("description", ""), "hooks": m.get("hooks", [])}
+             "description": m.get("description", ""), "hooks": m.get("hooks", []),
+             "config": m.get("config", [])}
             for m in self.installed.values()
         ]

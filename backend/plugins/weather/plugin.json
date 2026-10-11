@@ -1,7 +1,10 @@
 {
   "name": "weather",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "entry": "main.py",
   "description": "天气查询：发送「天气 北京」或「/天气 上海」",
-  "hooks": ["message"]
+  "hooks": ["message"],
+  "config": [
+    { "key": "default_city", "label": "默认城市", "placeholder": "北京", "hint": "不带城市名时查这里" }
+  ]
 }

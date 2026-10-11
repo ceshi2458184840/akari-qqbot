@@ -204,6 +204,25 @@ async def install_plugins(body: dict[str, Any]):
     return {"installed": [m.get("name") for m in installed]}
 
 
+@app.get("/api/plugins/{name}/config")
+async def get_plugin_config(name: str):
+    meta = rt.plugins.installed.get(name)
+    if not meta:
+        return JSONResponse({"error": "插件不存在"}, status_code=404)
+    return {"name": name,
+            "schema": meta.get("config", []),
+            "values": rt.plugins.load_config(name)}
+
+
+@app.post("/api/plugins/{name}/config")
+async def set_plugin_config(name: str, body: dict[str, Any]):
+    if name not in rt.plugins.installed:
+        return JSONResponse({"error": "插件不存在"}, status_code=404)
+    rt.plugins.save_config(name, body or {})
+    rt.plugins.reload(name)
+    return {"ok": True, "name": name}
+
+
 # ---------------- WebSocket ----------------
 @app.websocket("/ws")
 async def ws_frontend(ws: WebSocket):

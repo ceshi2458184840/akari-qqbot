@@ -30,7 +30,7 @@ def register(api):
         text = (d.get("text") or "").strip()
         for kw in ("/天气", "天气", "#天气"):
             if text.startswith(kw):
-                city = text[len(kw):].strip() or DEFAULT_CITY
+                city = text[len(kw):].strip() or (api.config or {}).get("default_city") or DEFAULT_CITY
                 try:
                     reply = await _weather(city)
                 except Exception as exc:

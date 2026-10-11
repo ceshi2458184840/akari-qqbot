@@ -1,7 +1,13 @@
 {
   "name": "ai",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "entry": "main.py",
-  "description": "AI 对话：@机器人 或私聊即可对话（接任意 OpenAI 兼容接口）",
-  "hooks": ["message"]
+  "description": "AI 对话：@机器人 或私聊即可对话（任意 OpenAI 兼容接口，可在此设置）",
+  "hooks": ["message"],
+  "config": [
+    { "key": "base", "label": "接口地址 Base URL", "placeholder": "https://api.openai.com/v1", "hint": "OpenAI 兼容的 /v1 地址" },
+    { "key": "key", "label": "API Key", "placeholder": "sk-...", "hint": "你的密钥" },
+    { "key": "model", "label": "模型名", "placeholder": "gpt-4o-mini", "hint": "如 deepseek-chat / qwen-plus" },
+    { "key": "system", "label": "人格设定", "placeholder": "你是群里活泼可爱的助手…", "hint": "系统提示词" }
+  ]
 }
