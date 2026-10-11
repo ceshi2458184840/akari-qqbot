@@ -131,28 +131,30 @@ class QQOfficialAdapter(BaseAdapter):
             self.connected = False
 
     def auth_header(self) -> str | None:
-        """给官方 REST 用的 Authorization 值（形如 "QQBot <token>"）。"""
+        """给官方 REST 用的 Authorization 值（形如 "QQBot <token>"）。
+
+        注意：直接读 _token 可能已过期，正式请求请用 rest()。
+        """
         try:
             tok = getattr(getattr(self._client, "http", None), "_token", None)
             return tok.get_string() if tok is not None else None
         except Exception:
             return None
 
+    async def rest(self, method: str, path: str, **kw) -> dict[str, Any]:
+        """用 botpy 的 HTTP 客户端发官方 REST 请求（自动带/刷新 token）。"""
+        if not self._client:
+            raise RuntimeError("官方号未启动")
+        from botpy.http import Route  # type: ignore
+        route = Route(method, path, **kw.pop("route_params", {}))
+        return await self._client.api._http.request(route, **kw)
+
     async def _user_info(self, openid: str) -> dict[str, Any]:
         """调官方 API 拿用户昵称/头像（失败则返回空，不阻塞消息）。"""
         try:
-            auth = self.auth_header()
-            if not auth:
-                return {}
-            import httpx
-            async with httpx.AsyncClient(timeout=6) as c:
-                r = await c.get(
-                    f"https://api.sgroup.qq.com/v2/users/{openid}",
-                    headers={"Authorization": auth, "X-Union-Appid": self.appid},
-                )
-                if r.status_code == 200:
-                    d = r.json()
-                    return {"name": d.get("username", ""), "avatar": _https(d.get("avatar", ""))}
+            d = await self.rest("GET", "/v2/users/{openid}", route_params={"openid": openid})
+            if isinstance(d, dict) and d.get("username") is not None:
+                return {"name": d.get("username", ""), "avatar": _https(d.get("avatar", ""))}
         except Exception as exc:
             self.log(f"[qqofficial:{self.account_id}] 获取用户信息失败：{exc}")
         return {}
