@@ -163,6 +163,14 @@
          font-size:14px;padding:11px 20px;border-radius:12px;opacity:0;transition:opacity .22s,transform .22s;
          pointer-events:none;z-index:99;max-width:80%;text-align:center;backdrop-filter:blur(8px)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+  /* 我的页封面 */
+  .cover{position:relative;margin:10px 12px 2px;border-radius:14px;overflow:hidden;
+         box-shadow:0 6px 18px rgba(18,183,245,.18)}
+  .cover img{width:100%;display:block}
+  .cover .cvinfo{position:absolute;left:0;right:0;bottom:0;padding:16px 16px 12px;color:#fff;
+         background:linear-gradient(transparent,rgba(6,20,40,.8))}
+  .cover .cvinfo b{font-size:16px;display:block;letter-spacing:.4px}
+  .cover .cvinfo span{font-size:12px;opacity:.85}
   /* 插件设置弹层 */
   .sheet{position:absolute;inset:0;background:rgba(0,0,0,.42);display:flex;align-items:flex-end;z-index:60;
          opacity:0;pointer-events:none;transition:opacity .2s}
@@ -230,6 +238,10 @@
 
   <!-- 我的 -->
   <div class="page hidden" id="page-me">
+    <div class="cover">
+      <img src="cover.jpg" alt="AkariBot">
+      <div class="cvinfo"><b>AkariBot Studio</b><span>仿 QQ · 双模式机器人控制台</span></div>
+    </div>
     <div class="sec">
       <h4>机器人账号</h4>
       <div class="card flat" style="padding:0 14px" id="botList"></div>

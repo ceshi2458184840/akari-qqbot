@@ -1,5 +1,7 @@
 # AkariBot Studio · 仿 QQ 界面的 QQ 机器人应用
 
+![cover](docs/cover.jpg)
+
 一个自研的 QQ 机器人客户端：**界面尽量贴近 QQ 本体**，支持 **个人号扫码登录** 与 **QQ 官方机器人（AppID/Secret）** 双模式，内置 **插件商店**（从一个 GitHub 仓库链接一键拉取其下全部插件）。
 
 ## 为什么自己做
